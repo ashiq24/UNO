@@ -5,9 +5,12 @@ from train_2D_t import train_model
 from utilities3 import *
 from torchsummary import summary
 from test import plot_aRun
+'''
+This perticular model of UNO is design for solving Navier Stokes equation. More explecitely, given the vorticity of 
+first 10 time steps of a fuild flow, we want to predcit the vorticity of next 10 time steps.
+'''
 
-
-S = 64 #resolution (Grid size) of training data
+S = 64 #resolution (grid size) of training data
 T_in = 10 #Number of input time steps (e.g. vorticity of first 10 time steps of a fuild flow foir Navier Stoks equation)
 T_f = 10  ##Number of output time steps (e.g. vorticity of next 10 time steps of a fuild flow foir Navier Stoks equation)
 ntrain = 1000 # Numbe of training samples
@@ -17,6 +20,7 @@ width = 16 # In UNO, at the begining we lift the input to a higher dimension cha
 inwidth = 12 # the solution of the previous 10 timesteps + 2 locations (u(t-10, x, y), ..., u(t-1, x, y),  x, y). The total number of input channel
 epochs = 2 # Number of epochs to train
 
+#Random data 
 train_a = torch.rand((1000,64,64,T_in))
 train_u = torch.rand((1000,64,64,T_f))
 val_a = torch.rand((200,64,64,T_in))
