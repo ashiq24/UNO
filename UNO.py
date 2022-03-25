@@ -82,7 +82,7 @@ class pointwise_op(nn.Module):
         return x_out
 
 class FNO2d_UNO(nn.Module):
-    def __init__(selfin_width, width,pad = 6, factor = 3/4):
+    def __init__(self,in_width, width,pad = 0, factor = 3/4):
         super(FNO2d_UNO, self).__init__()
 
         """
