@@ -17,7 +17,9 @@ utilities3.py - contains code for calculating error rate, normilzations. etc.
 
 ## UNO 3D
 main_3D.py - demo script to run the model
+
 train_3d.py - training routine for UNO3D
+
 model3D.py - UNO3D model code
 
 
