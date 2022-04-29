@@ -151,20 +151,25 @@ class FNO3d(nn.Module):
         gridz = torch.tensor(np.linspace(0, 1, size_z), dtype=torch.float)
         gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
         return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
+
+
 ################################################################
 # Code of UNO3D starts 
 # Pointwise and Fourier Layer
 ################################################################
+
+
 class SpectralConv3d_UNO(nn.Module):
     def __init__(self, in_channels, out_channels,D1,D2,D3, modes1=None, modes2=None, modes3=None):
         super(SpectralConv3d_UNO, self).__init__()
 
         """
         3D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        D1,D2,D3 are output dimensions (x,y,t)
-        modes1,modes2,modes3 = Number of fourier coefficinets to consider along each spectral dimesion   
+        D1,D2,D3 are output resolution (x,y,t)
+        modes1,modes2,modes3 = Number of fourier coefficinets to consider along each spectral resesion   
         """
-
+        in_channels = int(in_channels)
+        out_channels = int(out_channels)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.d1 = D1
@@ -175,15 +180,15 @@ class SpectralConv3d_UNO(nn.Module):
             self.modes2 = modes2
             self.modes3 = modes3 
         else:
-            self.modes1 = D1 #Will take the maximum number of possiblel modes for given output dimension
+            self.modes1 = D1 #Will take the maximum number of possiblel modes for given output resension
             self.modes2 = D2
             self.modes3 = D3//2+1
 
         self.scale = (1 / (2*in_channels))**(1.0/2.0)
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights1 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights3 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights4 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
 
     # Complex multiplication
     def compl_mul3d(self, input, weights):
@@ -192,7 +197,7 @@ class SpectralConv3d_UNO(nn.Module):
 
     def forward(self, x, D1 = None,D2=None,D3=None):
         """
-        D1,D2,D3 are the output dimensions (x,y,t)
+        D1,D2,D3 are the output resolution (x,y,t)
         """
         if D1 is not None:
             self.d1 = D1
@@ -219,41 +224,58 @@ class SpectralConv3d_UNO(nn.Module):
         return x
 
 class pointwise_op_3D(nn.Module):
-    def __init__(self, in_channel, out_channel,dim1, dim2,dim3):
+    def __init__(self, in_channel, out_channel,res1, res2,res3):
         super(pointwise_op_3D,self).__init__()
         self.conv = nn.Conv3d(int(in_channel), int(out_channel), 1)
-        self.dim1 = int(dim1)
-        self.dim2 = int(dim2)
-        self.dim3 = int(dim3)
+        self.res1 = int(res1)
+        self.res2 = int(res2)
+        self.res3 = int(res3)
 
-    def forward(self,x, dim1 = None, dim2 = None, dim3 = None):
+    def forward(self,x, res1 = None, res2 = None, res3 = None):
         """
-        dim1,dim2,dim3 are the output dimensions (x,y,t)
+        res1,res2,res3 are the output resolution (x,y,t)
         """
-        if dim1 is None:
-            dim1 = self.dim1
-            dim2 = self.dim2
-            dim3 = self.dim3
+        if res1 is None:
+            res1 = self.res1
+            res2 = self.res2
+            res3 = self.res3
         x_out = self.conv(x)
-        x_out = torch.nn.functional.interpolate(x_out, size = (dim1, dim2,dim3),mode = 'trilinear',align_corners=True)
+        x_out = torch.nn.functional.interpolate(x_out, size = (res1, res2,res3),mode = 'trilinear',align_corners=True)
         return x_out
 
-class UNO_3D(nn.Module):
-    def __init__(self, in_width, width,pad = 0, factor = 1):
-        super(UNO_3D, self).__init__()
+class OperatorBlock_3D(nn.Module,):
+    """
+    To turn to normalization set Normalize = True
+    To have linear operator set Non_Lin = False
+    """
+    def __init__(self, in_channel, out_channel,res1, res2,res3,modes1,modes2,modes3, Normalize = False,Non_Lin = True):
+        super(OperatorBlock_3D,self).__init__()
+        self.conv = SpectralConv3d_UNO(in_channel, out_channel, res1,res2,res3,modes1,modes2,modes3)
+        self.w = pointwise_op_3D(in_channel, out_channel, res1,res2,res3)
+        self.normalize = Normalize
+        self.non_lin = Non_Lin
+        if Normalize:
+            self.normalize_layer = torch.nn.InstanceNorm3d(out_channel,affine=True)
 
-        """
-        The overall network. It contains roughly the following layers.
-        1. Lift the input to the desire channel dimension by self.fc0 and fc_n1.
-        2. layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the first 10 timesteps + 3 locations (u(1, x, y), ..., u(10, x, y),  x, y, t). It's a constant function in time, except for the last index.
-        input shape: (batchsize, x=64, y=64, t=40, c=13)
-        output: the solution of the next 40 timesteps
-        output shape: (batchsize, x=64, y=64, t=40, c=1)
-        """
+
+    def forward(self,x, res1 = None, res2 = None, res3 = None):
+
+        x1_out = self.conv(x,res1,res2,res3)
+        x2_out = self.w(x,res1,res2,res3)
+        x_out = x1_out + x2_out
+        if self.normalize:
+            x_out = self.normalize_layer(x_out)
+        if self.non_lin:
+            x_out = F.gelu(x_out)
+        return x_out
+"""
+Following neural operator is desinged for predicting next 20 time steps from the input (Initial 10 time steps).
+Lines for Normalization are commented out.
+"""
+class Uno3D_T20(nn.Module):
+    def __init__(self, in_width, width,pad = 0, factor = 1):
+        super(Uno3D_T20, self).__init__()
+
         self.in_width = in_width # input channel
         self.width = width 
         
@@ -262,104 +284,72 @@ class UNO_3D(nn.Module):
         self.fc_n1 = nn.Linear(self.in_width, self.width//2)
 
         self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
-
-        self.conv0 = SpectralConv3d_UNO(self.width, 2*factor*self.width,32, 32, 20, 16,16, 11)
-
-        self.conv1 = SpectralConv3d_UNO(2*factor*self.width, 4*factor*self.width, 16, 16,10, 8,8,6)
-
-        self.conv2 = SpectralConv3d_UNO(4*factor*self.width, 8*factor*self.width, 8, 8, 5, 4,4, 3)
         
-        self.conv2_5 = SpectralConv3d_UNO(8*factor*self.width, 8*factor*self.width, 8, 8, 5, 4, 4, 3)
+        self.conv0 = OperatorBlock_3D(self.width, 2*self.width,32, 32, 16, 16,16, 8)
         
-        self.conv3 = SpectralConv3d_UNO(8*factor*self.width, 4*factor*self.width, 16, 16, 10, 4,4,3)
+        self.conv1 = OperatorBlock_3D(2*self.width, 4*factor*self.width, 16, 16,8, 8,8,4)
+        
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 8, 8, 8, 4,4, 4) 
+        
+        self.conv2_1 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3) 
+        
+        self.conv2_5 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3)
+        
+        self.conv2_9 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 8, 8, 8, 3,3, 3)
+        
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 16, 16, 8, 4,4,3)
+        
+        self.conv4 = OperatorBlock_3D(8*factor*self.width, 2*self.width, 32, 32, 16, 8,8,3)
+        
+        self.conv5 = OperatorBlock_3D(4*self.width, self.width, 64, 64, 20, 16,16, 8) # will be reshaped
 
-        self.conv4 = SpectralConv3d_UNO(8*factor*self.width, 2*factor*self.width, 32, 32, 20, 8,8,6)
-
-        self.conv5 = SpectralConv3d_UNO(4*factor*self.width, self.width, 64, 64, 40, 16,16, 11) # will be reshaped
-
-        self.w0 = pointwise_op_3D(self.width,2*factor*self.width,32, 32, 20) #
+        self.fc1 = nn.Linear(2*self.width, 4*self.width)
+        self.fc2 = nn.Linear(4*self.width, 1)
         
-        self.w1 = pointwise_op_3D(2*factor*self.width, 4*factor*self.width, 16, 16, 10) #
-        
-        self.w2 = pointwise_op_3D(4*factor*self.width, 8*factor*self.width, 8, 8, 5) #
-        
-        self.w2_5 = pointwise_op_3D(8*factor*self.width, 8*factor*self.width, 8, 8, 5) #
-
-        self.w3 = pointwise_op_3D(8*factor*self.width, 4*factor*self.width, 16, 16, 10) #
-        
-        self.w4 = pointwise_op_3D(8*factor*self.width, 2*factor*self.width, 32, 32, 20)
-        
-        self.w5 = pointwise_op_3D(4*factor*self.width, self.width, 64, 64, 40) # will be reshaped
-
-        self.fc1 = nn.Linear(2*self.width, 3*self.width)
-        self.fc2 = nn.Linear(3*self.width + self.width//2, 1)
+        #self.bn_fc_1 = torch.nn.InstanceNorm3d(self.width)
+        #self.bn_fc0 = torch.nn.InstanceNorm3d(self.width)
+        #self.bn_fc1 = torch.nn.InstanceNorm3d(4*self.width)
 
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
-
         x_fc_1 = self.fc_n1(x)
         x_fc_1 = F.gelu(x_fc_1)
-
         x_fc0 = self.fc0(x_fc_1)
+        #x_fc0 = self.bn_fc0(x_fc0.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
         x_fc0 = F.gelu(x_fc0)
         
         x_fc0 = x_fc0.permute(0, 4, 1, 2, 3)
-        x_fc0 = F.pad(x_fc0, [self.padding,self.padding, self.padding,self.padding,self.padding,self.padding])
+        
+        x_fc0 = F.pad(x_fc0, [0,self.padding,0,0,0,0],mode ='constant')
         
         D1,D2,D3 = x_fc0.shape[-3],x_fc0.shape[-2],x_fc0.shape[-1]
 
-        x1_c0 = self.conv0(x_fc0,D1//2,D2//2,D3//2)
-        x2_c0 = self.w0(x_fc0,D1//2,D2//2,D3//2)
-        x_c0 = x1_c0 + x2_c0
-        x_c0 = F.gelu(x_c0)
-        #print(x.shape)
-
-        x1_c1 = self.conv1(x_c0,D1//4,D2//4,D3//4)
-        x2_c1 = self.w1(x_c0,D1//4,D2//4,D3//4)
-        x_c1 = x1_c1 + x2_c1
-        x_c1 = F.gelu(x_c1)
-        #print(x.shape)
-
-        x1_c2 = self.conv2(x_c1,D1//8,D2//8,D3//8)
-        x2_c2 = self.w2(x_c1,D1//8,D2//8,D3//8)
-        x_c2 = x1_c2 + x2_c2
-        x_c2 = F.gelu(x_c2)
-        #print(x.shape)
+        x_c0 = self.conv0(x_fc0)
+        x_c1 = self.conv1(x_c0)
+        x_c2 = self.conv2(x_c1)
         
-        x1_c2_5 = self.conv2_5(x_c2,D1//8,D2//8,D3//8)
-        x2_c2_5 = self.w2_5(x_c2,D1//8,D2//8,D3//8)
-        x_c2_5 = x1_c2_5 + x2_c2_5
-        x_c2_5 = F.gelu(x_c2_5)
-        #print(x.shape)
+        x_c2_1 = self.conv2_1(x_c2)
+        x_c2_5 = self.conv2_5(x_c2_1)
+        x_c2_9 = self.conv2_9(x_c2_5)
 
-        x1_c3 = self.conv3(x_c2_5 ,D1//4,D2//4,D3//4)
-        x2_c3 = self.w3(x_c2_5 ,D1//4,D2//4,D3//4)
-        x_c3 = x1_c3 + x2_c3
-        x_c3 = F.gelu(x_c3)
+        x_c3 = self.conv3(x_c2_9)
         x_c3 = torch.cat([x_c3, x_c1], dim=1)
 
-        x1_c4 = self.conv4(x_c3 ,D1//2,D2//2,D3//2)
-        x2_c4 = self.w4(x_c3 ,D1//2,D2//2,D3//2)
-        x_c4 = x1_c4 + x2_c4
-        x_c4 = F.gelu(x_c4)
+        x_c4 = self.conv4(x_c3)
         x_c4 = torch.cat([x_c4, x_c0], dim=1)
 
-        x1_c5 = self.conv5(x_c4,D1,D2,D3)
-        x2_c5 = self.w5(x_c4,D1,D2,D3)
-        x_c5 = x1_c5 + x2_c5
-        x_c5 = F.gelu(x_c5)
-        #print(x.shape)
+        x_c5 = self.conv5(x_c4,D1,D2,D3)
         x_c5 = torch.cat([x_c5, x_fc0], dim=1)
+
         if self.padding!=0:
-            x_c5 = x_c5[..., self.padding:-self.padding, self.padding:-self.padding,self.padding:-self.padding]
+            x_c5 = x_c5[...,:-self.padding]
 
         x_c5 = x_c5.permute(0, 2, 3, 4, 1)
 
         x_fc1 = self.fc1(x_c5)
+        #x_fc1 = self.bn_fc1(x_fc1.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
         x_fc1 = F.gelu(x_fc1)
-
-        x_fc1 = torch.cat([x_fc1, x_fc_1], dim=4)
         x_out = self.fc2(x_fc1)
         
         return x_out
