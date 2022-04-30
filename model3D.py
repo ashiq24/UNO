@@ -281,7 +281,7 @@ class Uno3D_T20(nn.Module):
         
         self.padding = pad  # pad the domain if input is non-periodic
 
-        self.fc_n1 = nn.Linear(self.in_width, self.width//2)
+        self.fc = nn.Linear(self.in_width, self.width//2)
 
         self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
         
@@ -291,17 +291,17 @@ class Uno3D_T20(nn.Module):
         
         self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 8, 8, 8, 4,4, 4) 
         
-        self.conv2_1 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3) 
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3) 
         
-        self.conv2_5 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3)
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 4, 4, 4, 3,3, 3)
         
-        self.conv2_9 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 8, 8, 8, 3,3, 3)
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 8, 8, 8, 3,3, 3)
         
-        self.conv3 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 16, 16, 8, 4,4,3)
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 16, 16, 8, 4,4,3)
         
-        self.conv4 = OperatorBlock_3D(8*factor*self.width, 2*self.width, 32, 32, 16, 8,8,3)
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*self.width, 32, 32, 16, 8,8,3)
         
-        self.conv5 = OperatorBlock_3D(4*self.width, self.width, 64, 64, 20, 16,16, 8) # will be reshaped
+        self.conv8 = OperatorBlock_3D(4*self.width, self.width, 64, 64, 20, 16,16, 8) # will be reshaped
 
         self.fc1 = nn.Linear(2*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
@@ -313,9 +313,9 @@ class Uno3D_T20(nn.Module):
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
-        x_fc_1 = self.fc_n1(x)
-        x_fc_1 = F.gelu(x_fc_1)
-        x_fc0 = self.fc0(x_fc_1)
+        x_fc = self.fc(x)
+        x_fc = F.gelu(x_fc)
+        x_fc0 = self.fc0(x_fc)
         #x_fc0 = self.bn_fc0(x_fc0.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
         x_fc0 = F.gelu(x_fc0)
         
@@ -325,29 +325,30 @@ class Uno3D_T20(nn.Module):
         
         D1,D2,D3 = x_fc0.shape[-3],x_fc0.shape[-2],x_fc0.shape[-1]
 
-        x_c0 = self.conv0(x_fc0)
-        x_c1 = self.conv1(x_c0)
-        x_c2 = self.conv2(x_c1)
+        x_c0 = self.conv0(x_fc0,D1//2,D2//2, 4*D3//5)
+        x_c1 = self.conv1(x_c0,D1//4,D2//4, 2*D3//5)
+        x_c2 = self.conv2(x_c1,D1//8,D2//8, 2*D3//5)
         
-        x_c2_1 = self.conv2_1(x_c2)
-        x_c2_5 = self.conv2_5(x_c2_1)
-        x_c2_9 = self.conv2_9(x_c2_5)
+        x_c3 = self.conv3(x_c2,D1//16,D2//16, D3//5)
+        x_c4 = self.conv4(x_c3,D1//16,D2//16, D3//5)
 
-        x_c3 = self.conv3(x_c2_9)
-        x_c3 = torch.cat([x_c3, x_c1], dim=1)
+        x_c5 = self.conv5(x_c4,D1//8,D2//8, 2*D3//5)
 
-        x_c4 = self.conv4(x_c3)
-        x_c4 = torch.cat([x_c4, x_c0], dim=1)
+        x_c6 = self.conv6(x_c5,D1//4,D2//4,2*D3//5)
+        x_c6 = torch.cat([x_c6, x_c1], dim=1)
 
-        x_c5 = self.conv5(x_c4,D1,D2,D3)
-        x_c5 = torch.cat([x_c5, x_fc0], dim=1)
+        x_c7 = self.conv7(x_c6,D1//2,D2//2,4*D3//5)
+        x_c7 = torch.cat([x_c7, x_c0], dim=1)
+
+        x_c8 = self.conv8(x_c7,D1,D2,D3)
+        x_c8 = torch.cat([x_c8, x_fc0], dim=1)
 
         if self.padding!=0:
-            x_c5 = x_c5[...,:-self.padding]
+            x_c8 = x_c8[...,:-self.padding]
 
-        x_c5 = x_c5.permute(0, 2, 3, 4, 1)
+        x_c8 = x_c8.permute(0, 2, 3, 4, 1)
 
-        x_fc1 = self.fc1(x_c5)
+        x_fc1 = self.fc1(x_c8)
         #x_fc1 = self.bn_fc1(x_fc1.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
         x_fc1 = F.gelu(x_fc1)
         x_out = self.fc2(x_fc1)
