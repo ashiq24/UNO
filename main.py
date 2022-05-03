@@ -1,6 +1,6 @@
 import torch
 from data import *
-from UNO import FNO2d_UNO
+from UNO import UNO_2D
 from train_2D_t import train_model
 from utilities3 import *
 from torchsummary import summary
@@ -27,7 +27,7 @@ val_u = torch.rand((200,64,64,T_f))
 train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(train_a, train_u), batch_size=batch_size, shuffle=True)
 val_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(val_a, val_u), batch_size=batch_size, shuffle=False)
 
-model = FNO2d_UNO(inwidth,width).cuda()
+model = UNO_2D(inwidth,width).cuda()
 summary(model, (64, 64,T_in))
 train_model(model,train_loader,val_loader, ntrain,ntest,\
             T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.001,\
