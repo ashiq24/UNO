@@ -81,9 +81,9 @@ class pointwise_op(nn.Module):
         x_out = torch.nn.functional.interpolate(x_out, size = (dim1, dim2),mode = 'bicubic',align_corners=True)
         return x_out
 
-class FNO2d_UNO(nn.Module):
+class UNO_2D(nn.Module):
     def __init__(self,in_width, width,pad = 0, factor = 3/4):
-        super(FNO2d_UNO, self).__init__()
+        super(UNO_2D, self).__init__()
 
         """
         The overall network. It contains 4 layers of the Fourier layer.
@@ -99,117 +99,110 @@ class FNO2d_UNO(nn.Module):
         """
         self.in_width = in_width # input channel
         self.width = width 
-        self.factor = factor
+        
         self.padding = pad  # pad the domain if input is non-periodic
-        self.fc0 = nn.Linear(self.in_width, self.width) # input channel is 3: (a(x, y), x, y)
 
-        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,48, 48, 24, 24)
+        self.fc = nn.Linear(self.in_width, self.width//2)
 
-        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 32, 32, 16,16)
+        self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
 
-        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 16, 16,8,8)
-        
-        self.conv2_1 = SpectralConv2d(8*factor*self.width, 16*factor*self.width, 8, 8,4,4)
-        
-        self.conv2_9 = SpectralConv2d(16*factor*self.width, 8*factor*self.width, 16, 16,4,4)
-        
+        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,32, 32, 16, 17)
 
-        self.conv3 = SpectralConv2d(16*factor*self.width, 4*factor*self.width, 32, 32,8,8)
+        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 16, 16, 8,9)
 
-        self.conv4 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 48, 48,16,16)
+        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 8, 8,4,5)
+        
+        self.conv3 = SpectralConv2d(8*factor*self.width, 8*factor*self.width, 8, 8,4,5)
+        
+        self.conv4 = SpectralConv2d(8*factor*self.width, 4*factor*self.width, 16, 16,4,5)
 
-        self.conv5 = SpectralConv2d(4*factor*self.width, self.width, 64, 64,24,24) # will be reshaped
+        self.conv5 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 32, 32,8,9)
 
-        self.w0 = pointwise_op(self.width,2*factor*self.width,48, 48) #
-        
-        self.w1 = pointwise_op(2*factor*self.width, 4*factor*self.width, 32, 32) #
-        
-        self.w2 = pointwise_op(4*factor*self.width, 8*factor*self.width, 16, 16) #
-        
-        self.w2_1 = pointwise_op(8*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w2_9 = pointwise_op(16*factor*self.width, 8*factor*self.width, 16, 16)
-        
-        self.w3 = pointwise_op(16*factor*self.width, 4*factor*self.width, 32, 32) #
-        
-        self.w4 = pointwise_op(8*factor*self.width, 2*factor*self.width, 48, 48)
-        
-        self.w5 = pointwise_op(4*factor*self.width, self.width, 64, 64) # will be reshaped
+        self.conv6 = SpectralConv2d(4*factor*self.width, self.width, 64, 64,16,17) # will be reshaped
 
-        self.fc1 = nn.Linear(2*self.width, 4*self.width)
-        self.fc2 = nn.Linear(4*self.width, 1)
+        self.w0 = pointwise_op(self.width,2*factor*self.width,32, 32) #
+        
+        self.w1 = pointwise_op(2*factor*self.width, 4*factor*self.width, 16, 16) #
+        
+        self.w2 = pointwise_op(4*factor*self.width, 8*factor*self.width, 8, 8) #
+        
+        self.w3 = pointwise_op(8*factor*self.width, 8*factor*self.width, 8, 8) #
+
+        self.w4 = pointwise_op(8*factor*self.width, 4*factor*self.width, 16, 16) #
+        
+        self.w5 = pointwise_op(8*factor*self.width, 2*factor*self.width, 32, 32)
+        
+        self.w6 = pointwise_op(4*factor*self.width, self.width, 64, 64) # will be reshaped
+
+        self.fc1 = nn.Linear(2*self.width, 3*self.width)
+        self.fc2 = nn.Linear(3*self.width + self.width//2, 1)
 
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
-         
-        x_fc0 = self.fc0(x)
+
+        x_fc = self.fc(x)
+        x_fc = F.gelu(x_fc)
+
+        x_fc0 = self.fc0(x_fc)
         x_fc0 = F.gelu(x_fc0)
         
         x_fc0 = x_fc0.permute(0, 3, 1, 2)
-        
-        
-        x_fc0 = F.pad(x_fc0, [0,self.padding, 0,self.padding])
+        x_fc0 = F.pad(x_fc0, [self.padding,self.padding, self.padding,self.padding])
         
         D1,D2 = x_fc0.shape[-2],x_fc0.shape[-1]
-        
 
-        x1_c0 = self.conv0(x_fc0,int(D1*self.factor),int(D2*self.factor))
-        x2_c0 = self.w0(x_fc0,int(D1*self.factor),int(D2*self.factor))
+        x1_c0 = self.conv0(x_fc0,D1//2,D2//2)
+        x2_c0 = self.w0(x_fc0,D1//2,D2//2)
         x_c0 = x1_c0 + x2_c0
         x_c0 = F.gelu(x_c0)
         #print(x.shape)
 
-        x1_c1 = self.conv1(x_c0 ,D1//2,D2//2)
-        x2_c1 = self.w1(x_c0 ,D1//2,D2//2)
+        x1_c1 = self.conv1(x_c0,D1//4,D2//4)
+        x2_c1 = self.w1(x_c0,D1//4,D2//4)
         x_c1 = x1_c1 + x2_c1
         x_c1 = F.gelu(x_c1)
         #print(x.shape)
 
-        x1_c2 = self.conv2(x_c1 ,D1//4,D2//4)
-        x2_c2 = self.w2(x_c1 ,D1//4,D2//4)
+        x1_c2 = self.conv2(x_c1,D1//8,D2//8)
+        x2_c2 = self.w2(x_c1,D1//8,D2//8)
         x_c2 = x1_c2 + x2_c2
-        x_c2 = F.gelu(x_c2 )
+        x_c2 = F.gelu(x_c2)
         #print(x.shape)
         
-        x1_c2_1 = self.conv2_1(x_c2,D1//8,D2//8)
-        x2_c2_1 = self.w2_1(x_c2,D1//8,D2//8)
-        x_c2_1 = x1_c2_1 + x2_c2_1
-        x_c2_1 = F.gelu(x_c2_1)
-        
-        x1_c2_9 = self.conv2_9(x_c2_1,D1//4,D2//4)
-        x2_c2_9 = self.w2_9(x_c2_1,D1//4,D2//4)
-        x_c2_9 = x1_c2_9 + x2_c2_9
-        x_c2_9 = F.gelu(x_c2_9)
-        x_c2_9 = torch.cat([x_c2_9, x_c2], dim=1) 
-
-        x1_c3 = self.conv3(x_c2_9,D1//2,D2//2)
-        x2_c3 = self.w3(x_c2_9,D1//2,D2//2)
+        x1_c3 = self.conv3(x_c2,D1//8,D2//8)
+        x2_c3 = self.w3(x_c2,D1//8,D2//8)
         x_c3 = x1_c3 + x2_c3
         x_c3 = F.gelu(x_c3)
-        x_c3 = torch.cat([x_c3, x_c1], dim=1)
+        #print(x.shape)
 
-        x1_c4 = self.conv4(x_c3,int(D1*self.factor),int(D2*self.factor))
-        x2_c4 = self.w4(x_c3,int(D1*self.factor),int(D2*self.factor))
+        x1_c4 = self.conv4(x_c3 ,D1//4,D2//4)
+        x2_c4 = self.w4(x_c3 ,D1//4,D2//4)
         x_c4 = x1_c4 + x2_c4
         x_c4 = F.gelu(x_c4)
-        x_c4 = torch.cat([x_c4, x_c0], dim=1)
+        x_c4 = torch.cat([x_c4, x_c1], dim=1)
 
-        x1_c5 = self.conv5(x_c4,D1,D2)
-        x2_c5 = self.w5(x_c4,D1,D2)
+        x1_c5 = self.conv5(x_c4 ,D1//2,D2//2)
+        x2_c5 = self.w5(x_c4 ,D1//2,D2//2)
         x_c5 = x1_c5 + x2_c5
         x_c5 = F.gelu(x_c5)
-        
+        x_c5 = torch.cat([x_c5, x_c0], dim=1)
 
-        x_c5 = torch.cat([x_c5, x_fc0], dim=1)
+        x1_c6 = self.conv6(x_c5,D1,D2)
+        x2_c6 = self.w6(x_c5,D1,D2)
+        x_c6 = x1_c6 + x2_c6
+        x_c6 = F.gelu(x_c6)
+        #print(x.shape)
+        x_c6 = torch.cat([x_c6, x_fc0], dim=1)
         if self.padding!=0:
-            x_c5 = x_c5[..., :-self.padding, :-self.padding]
+            x_c6 = x_c6[..., self.padding:-self.padding, self.padding:-self.padding]
 
-        x_c5 = x_c5.permute(0, 2, 3, 1)
-        
-        x_fc1 = self.fc1(x_c5)
+        x_c6 = x_c6.permute(0, 2, 3, 1)
+
+        x_fc1 = self.fc1(x_c6)
         x_fc1 = F.gelu(x_fc1)
-        
+
+        x_fc1 = torch.cat([x_fc1, x_fc], dim=3)
         x_out = self.fc2(x_fc1)
         
         return x_out
