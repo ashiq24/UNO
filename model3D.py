@@ -272,9 +272,9 @@ class OperatorBlock_3D(nn.Module,):
 Following neural operator is desinged for predicting next 20 time steps from the input (Initial 10 time steps).
 Lines for Normalization are commented out.
 """
-class Uno3D_T20(nn.Module):
+class Uno3D_T20_domain_ex(nn.Module):
     def __init__(self, in_width, width,pad = 0, factor = 1):
-        super(Uno3D_T20, self).__init__()
+        super(Uno3D_T20_domain_ex, self).__init__()
 
         self.in_width = in_width # input channel
         self.width = width 
@@ -345,6 +345,110 @@ class Uno3D_T20(nn.Module):
 
         if self.padding!=0:
             x_c8 = x_c8[...,:-self.padding]
+
+        x_c8 = x_c8.permute(0, 2, 3, 4, 1)
+
+        x_fc1 = self.fc1(x_c8)
+        #x_fc1 = self.bn_fc1(x_fc1.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
+        x_fc1 = F.gelu(x_fc1)
+        x_out = self.fc2(x_fc1)
+        
+        return x_out
+    
+    def get_grid(self, shape, device):
+        batchsize, size_x, size_y, size_z = shape[0], shape[1], shape[2], shape[3]
+        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = gridx.reshape(1, size_x, 1, 1, 1).repeat([batchsize, 1, size_y, size_z, 1])
+        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = gridy.reshape(1, 1, size_y, 1, 1).repeat([batchsize, size_x, 1, size_z, 1])
+        gridz = torch.tensor(np.linspace(0, 1, size_z), dtype=torch.float)
+        gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
+        return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
+
+#######
+## New 3D Neural operator
+########
+class Uno3D_T40(nn.Module):
+    def __init__(self, in_width, width,pad = 0, factor = 1, pad_both = False):
+        super(Uno3D_T40, self).__init__()
+
+        self.in_width = in_width # input channel
+        self.width = width 
+        
+        self.padding = pad  # pad the domain if input is non-periodic
+        self.pad_both = pad_both
+        self.fc_n1 = nn.Linear(self.in_width, self.width//2)
+
+        self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
+        
+        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 24,24, 5)
+        
+        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  16,16,5)
+        
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 16,  8,8,5)
+        
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 16,  4,4,8)
+        
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 16,  4,4,8)
+        
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 16,  4,4,8) 
+        
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 24,  8,8,8)
+        
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 32,  16,16,12)
+        
+        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 40,  24,24, 16) # will be reshaped
+
+        self.fc1 = nn.Linear(3*self.width, 4*self.width)
+        self.fc2 = nn.Linear(4*self.width, 1)
+        
+        #self.bn_fc_1 = torch.nn.BatchNorm3d(self.width)
+        #self.bn_fc0 = torch.nn.InstanceNorm3d(self.width)
+        #self.bn_fc1 = torch.nn.InstanceNorm3d(4*self.width)
+
+    def forward(self, x, time_grid = 40):
+        grid = self.get_grid(x.shape, x.device)
+        x = torch.cat((x, grid), dim=-1)
+        x_fc = self.fc_n1(x)
+        x_fc = F.gelu(x_fc)
+        x_fc0 = self.fc0(x_fc)
+        #x_fc0 = self.bn_fc0(x_fc0.permute(0, 4, 1, 2, 3)).permute(0, 2, 3, 4, 1)
+        x_fc0 = F.gelu(x_fc0)
+        
+        x_fc0 = x_fc0.permute(0, 4, 1, 2, 3)
+        
+        #x_fc0 = F.pad(x_fc0, [0,self.padding,0,0,0,0],mode ='constant')
+        
+        D1,D2,D3 = x_fc0.shape[-3],x_fc0.shape[-2],x_fc0.shape[-1]
+
+        x_c0 = self.conv0(x_fc0)
+        x_c1 = self.conv1(x_c0)
+        x_c2 = self.conv2(x_c1)
+        
+        x_c3 = self.conv3(x_c2)
+        x_c4 = self.conv4(x_c3)
+        x_c5 = self.conv5(x_c4)
+        
+
+        x_c6 = self.conv6(x_c5)
+        x_c6 = torch.cat([x_c6, torch.nn.functional.interpolate(x_c1, size = (x_c6.shape[2], x_c6.shape[3],x_c6.shape[4]),mode = 'trilinear',align_corners=True)], dim=1)
+        
+
+        x_c7 = self.conv7(x_c6)
+        x_c7 = torch.cat([x_c7, torch.nn.functional.interpolate(x_c0, size = (x_c7.shape[2], x_c7.shape[3],x_c7.shape[4]),mode = 'trilinear',align_corners=True)], dim=1)
+        
+
+        
+        x_c8 = self.conv8(x_c7,D1,D2,time_grid+self.padding)
+
+        x_c8 = torch.cat([x_c8,torch.nn.functional.interpolate(x_fc0, size = (x_c8.shape[2], x_c8.shape[3],x_c8.shape[4]),mode = 'trilinear',align_corners=True)], dim=1)
+
+        
+        if self.padding!=0:
+            if self.pad_both:
+                x_c8 = x_c8[...,self.padding//2:-self.padding//2]
+            else:
+                x_c8 = x_c8[...,:-self.padding]
 
         x_c8 = x_c8.permute(0, 2, 3, 4, 1)
 
