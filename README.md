@@ -1,4 +1,5 @@
-# UNO
+# U-NO
+This repository contains code accompaning the paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
 ## Files
 
 ## UNO 2D-Time
