@@ -248,7 +248,7 @@ class OperatorBlock_3D(nn.Module,):
     To turn to normalization set Normalize = True
     To have linear operator set Non_Lin = False
     """
-    def __init__(self, in_channel, out_channel,res1, res2,res3,modes1,modes2,modes3, Normalize = False,Non_Lin = True):
+    def __init__(self, in_channel, out_channel,res1, res2,res3,modes1,modes2,modes3, Normalize = True, Non_Lin = True):
         super(OperatorBlock_3D,self).__init__()
         self.conv = SpectralConv3d_UNO(in_channel, out_channel, res1,res2,res3,modes1,modes2,modes3)
         self.w = pointwise_op_3D(in_channel, out_channel, res1,res2,res3)
@@ -271,6 +271,7 @@ class OperatorBlock_3D(nn.Module,):
 """
 Following neural operator is desinged for predicting next 20 time steps from the input (Initial 10 time steps).
 Lines for Normalization are commented out.
+The input function domain extended version.
 """
 class Uno3D_T20_domain_ex(nn.Module):
     def __init__(self, in_width, width,pad = 0, factor = 1):
@@ -367,6 +368,8 @@ class Uno3D_T20_domain_ex(nn.Module):
 
 #######
 ## New 3D Neural operator
+## Without any domain extension of the input function
+## Following neural operator is desinged for predicting next 40 time steps from the input (Initial 10 time steps).
 ########
 class Uno3D_T40(nn.Module):
     def __init__(self, in_width, width,pad = 0, factor = 1, pad_both = False):
