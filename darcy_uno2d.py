@@ -14,16 +14,12 @@ from train_darcy import train_model
 from timeit import default_timer
 from utilities3 import *
 from Adam import Adam
-from torchsummary import summary
 import gc
 import math
 plt.rcParams['figure.figsize'] = [6, 30]
 plt.rcParams['image.interpolation'] = 'nearest'
 torch.manual_seed(10001)
 random.seed(10001)
-
-import sys
-import logging
 
 
 train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200,"/home/ashiq/Desktop/Neural Operator codes/Darcy Flow/Data/piececonst_r421_N1024_smooth1.mat")
@@ -64,7 +60,7 @@ test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a,
 val_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(val_a, val_u), batch_size=batch_size, shuffle=True)
 
 model = UNO(inwidth,width,pad = 5).cuda()
-summary(model, (S, S,1))
+
 gc.collect()
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,S,'Darcy-D13-421.pt',\
             T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,\
