@@ -1,27 +1,17 @@
 # U-NO
 This repository contains code accompaning the paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
+## Requirements
+pytorch 1.11.0
 ## Files
+darcy_uno2d.py - Script for  UNO performing 2D spatial covolution for solving Darcy Flow equation. (Section 4.2, [paper](https://arxiv.org/pdf/2204.11127.pdf))
 
-## UNO 2D-Time
-UNO.py - contains the the UNO model and codes for relvent layer of the achitecture
+ns_uno2d_time.py - Script for UNO with recurrent strcuture in time for Navier-Stocks equation. (Section 4.3, [paper](https://arxiv.org/pdf/2204.11127.pdf))
 
-main.py - a demo script to run the UNO model with randomly genrated data.
+ns_uno3d.py - Script for UNO performing 3D spatio-temporal convolution for Navier-Stocks equation. (Section 4.3, Appendix C, [paper](https://arxiv.org/pdf/2204.11127.pdf))
 
-Amad.py - optimiser for the Neural operator model
+UNO2D.py - UNO achitectures autogressive in time for Navier-Stocks equation.
 
-train_2D_t.py  - training routine for 2D fluid flow (Navier-Stokes) problem.
+UNO3D.py - UNO achitectures performing 3D convolution for Navier-Stocks equation.
 
-test.py - scripts to generate figues and plots
+darcy_model.py - UNO achitectures for solving Darcy Flow equation.
 
-utilities3.py - contains code for calculating error rate, normilzations. etc.
-
-
-## UNO 3D
-main_3D.py - demo script to run the model
-
-train_3d.py - training routine for UNO3D
-
-model3D.py - UNO3D model code
-
-
-Codes have all necessery documentations.
