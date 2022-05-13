@@ -897,7 +897,7 @@ class Uno3D_T10_256(nn.Module):
 
 class Uno3D_T9_256(nn.Module):
     def __init__(self, in_width, width,pad = 2, factor = 1, pad_both = False):
-        super(Uno3D_T10_256, self).__init__()
+        super(Uno3D_T9_256, self).__init__()
 
         self.in_width = in_width # input channel
         self.width = width 
