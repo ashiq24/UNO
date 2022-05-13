@@ -67,5 +67,5 @@ model = UNO(inwidth,width,pad = 5).cuda()
 summary(model, (S, S,1))
 gc.collect()
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,S,'Darcy-D13-421.pt',\
-            T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.001,\
-            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.5,weight_dec = 1e-3)
+            T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,\
+            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.7,weight_dec = 1e-3)
