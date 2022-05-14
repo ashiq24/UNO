@@ -26,8 +26,8 @@ import sys
 import logging
 
 
-train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200,"/home/ashiq/Desktop/Neural Operator codes/Darcy Flow/Data/piececonst_r421_N1024_smooth1.mat")
-train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"/home/ashiq/Desktop/Neural Operator codes/Darcy Flow/Data/piececonst_r421_N1024_smooth2.mat")
+train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200," /piececonst_r421_N1024_smooth1.mat")
+train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"/piececonst_r421_N1024_smooth2.mat")
 
 sub = 2 # subsampling rate 
 S = 211 # Grid size/ resolution
