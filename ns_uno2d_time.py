@@ -29,9 +29,9 @@ batch_size = 20
 width = 32 # Uplifting dimesion
 inwidth = 12 # dimension of UNO input ( 10 time step + (x,y) location )
 epochs = 700
-train_a_1, train_u_1, test_a_1, test_u_1 = load_NS_("/home/ashiq/Desktop/Neural Operator codes/NS_data/ns_data_1200_T50_v001_dt0001.mat"\
+train_a_1, train_u_1, test_a_1, test_u_1 = load_NS_("./ns_data_1200_T50_v001_dt0001.mat"\
                                                     ,1000,200,Sample_num = 1200,T_in=T_in, T = T_f)
-train_a_2, train_u_2, test_a_2, test_u_2 = load_NS_("/home/ashiq/Desktop/Neural Operator codes/NS_data/ns_data_2_1200_T50_v001_dt0001.mat"\
+train_a_2, train_u_2, test_a_2, test_u_2 = load_NS_("./NS_data/ns_data_2_1200_T50_v001_dt0001.mat"\
                                                     ,1000 ,200,Sample_num = 1200,T_in=T_in, T = T_f)
 a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
 u = torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
