@@ -93,13 +93,11 @@ class UNO_P_13(nn.Module):
         self.in_width = in_width # input channel
         self.width = width 
         
-        self.padding = pad  # pad the domain if input is non-periodic
+        self.padding = pad  
 
         self.fc = nn.Linear(self.in_width, self.width//2)
 
-        self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
-
-        #self.conv_lin = SpectralConv2d(self.width, self.width,85, 85, 24, 24)
+        self.fc0 = nn.Linear(self.width//2, self.width) 
 
         self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,40, 40, 20, 20)
 
@@ -420,9 +418,11 @@ class UNO(nn.Module):
         self.in_width = in_width # input channel
         self.width = width 
         self.factor = factor
-        self.padding = pad  # pad the domain if input is non-periodic
+        self.padding = pad 
+        
+        self.fc = nn.Linear(self.in_width, self.width//2)
 
-        self.fc0 = nn.Linear(self.in_width, self.width) # input channel is 3: (a(x, y), x, y)
+        self.fc0 = nn.Linear(self.in_width//2, self.width) # input channel is 3: (a(x, y), x, y)
         
         self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,64, 64, 16, 16)
 
@@ -460,7 +460,10 @@ class UNO(nn.Module):
         x = torch.cat((x, grid), dim=-1)
 
 
-        x_fc0 = self.fc0(x)
+        x_fc = self.fc(x)
+        x_fc = F.gelu(x_fc)
+
+        x_fc0 = self.fc0(x_fc)
         x_fc0 = F.gelu(x_fc0)
         
         x_fc0 = x_fc0.permute(0, 3, 1, 2)
