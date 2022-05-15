@@ -219,25 +219,15 @@ class UNO(nn.Module):
     def __init__(self,in_width, width,pad = 0, factor = 3/4):
         super(UNO, self).__init__()
 
-        """
-        The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
-        2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the coefficient function and locations (a(x, y), x, y)
-        input shape: (batchsize, x=s, y=s, c=1)
-        output: the solution 
-        output shape: (batchsize, x=s, y=s, c=1)
-        """
 
         self.in_width = in_width # input channel
         self.width = width 
         self.factor = factor
-        self.padding = pad  # pad the domain if input is non-periodic
+        self.padding = pad  
 
-        self.fc0 = nn.Linear(self.in_width, self.width) # input channel is 3: (a(x, y), x, y)
+        self.fc = nn.Linear(self.in_width, self.width//2)
+
+        self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
 
         self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,48, 48, 24, 24)
 
@@ -273,8 +263,11 @@ class UNO(nn.Module):
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
+         
+        x_fc = self.fc(x)
+        x_fc = F.gelu(x_fc)
 
-        x_fc0 = self.fc0(x)
+        x_fc0 = self.fc0(x_fc)
         x_fc0 = F.gelu(x_fc0)
         
         x_fc0 = x_fc0.permute(0, 3, 1, 2)
