@@ -424,19 +424,19 @@ class UNO(nn.Module):
 
         self.fc0 = nn.Linear(self.in_width//2, self.width) # input channel is 3: (a(x, y), x, y)
         
-        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,64, 64, 16, 16)
+        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,64, 64, 28, 28)
 
-        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 32, 32, 12,12)
+        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 32, 32, 16,16)
 
-        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 16, 16,6,6)
+        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 16, 16,8,8)
         
-        self.conv3 = SpectralConv2d(8*factor*self.width, 8*factor*self.width, 16, 16,6,6)
+        self.conv3 = SpectralConv2d(8*factor*self.width, 8*factor*self.width, 16, 16,8,8)
         
         self.conv4 = SpectralConv2d(8*factor*self.width, 4*factor*self.width, 32, 32,8,8)
 
-        self.conv5 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 64, 64,12,12)
+        self.conv5 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 64, 64,16,16)
 
-        self.conv6 = SpectralConv2d(4*factor*self.width, self.width, 85, 85,16,16) # will be reshaped
+        self.conv6 = SpectralConv2d(4*factor*self.width, self.width, 85, 85,28,28) # will be reshaped
         
         self.w0 = pointwise_op(self.width,2*factor*self.width,64, 64) #
         
