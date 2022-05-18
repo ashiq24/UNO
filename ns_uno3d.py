@@ -26,7 +26,7 @@ plt.rcParams['image.interpolation'] = 'nearest'
 
 S = 64
 T_in = 10 # input time interval (0 - T_in)
-T_f = 10 # output time interval (T_in -  = T_in+T_f)
+T_f = 10 # output time interval (T_in  = T_in+T_f)
 ntrain = 1720 # number of training instances
 ntest = 1200 # number of test instances 
 nval = 500 # number of validation instances
