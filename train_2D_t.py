@@ -95,6 +95,7 @@ scheduler_step= 100,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_
     model.load_state_dict(torch.load(weight_path))
     model.eval()
     test_l2_step = 0
+    test_l2 = 0
     with torch.no_grad():
         for xx, yy in test_loader:
             xx = xx.to(device)
@@ -115,8 +116,11 @@ scheduler_step= 100,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_
                 xx = torch.cat((xx[..., step:], im), dim=-1)
 
             test_l2_step += loss.item()
+            test_l2 += myloss(pred.reshape(batch_size, -1), yy.reshape(batch_size, -1)).item()
+
+
             del xx,yy,pred
 
     t2 = default_timer()
     scheduler.step()
-    print("Test set Evaluation ","Test_loss", test_l2_step / ntest / (T_f / step))
+    print("Test set Evaluation ","Test_loss", test_l2_step / ntest / (T_f / step), test_l2 / ntest)

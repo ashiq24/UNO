@@ -93,12 +93,13 @@ def train_model_3d(model,train_loader,val_loader,test_loader,ntrain,nval,ntest,w
     model.eval()
 
     test_l2_step = 0.0
+    test_l2 = 0.0
     with torch.no_grad():
         for x, y in test_loader:
             x, y = x.cuda(), y.cuda()
             batch_size = x.shape[0]
             out = model(x).view(batch_size, S, S, T_f)
-
+            test_l2 += myloss(out.view(batch_size, -1), y.view(batch_size, -1)).item()
             temp_step_loss = 0
             for time in range(T_f):
                 k,l = out[...,time],y[...,time]
@@ -110,6 +111,7 @@ def train_model_3d(model,train_loader,val_loader,test_loader,ntrain,nval,ntest,w
 
     gc.collect()
     test_l2_step /= ntest*T_f
+    test_l2 /= ntest
 
-    print("*** Test error: ", test_l2_step)
+    print("*** Test error: ", test_l2, test_l2_step)
     
