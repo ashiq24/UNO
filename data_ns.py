@@ -22,6 +22,14 @@ import zipfile
 
 
 def load_NS_(path1,train,test,Sample_num = 1000, batch = 20,T_in = 10,T= 10,size=64):
+    """
+    train, test = number of train test split
+    Sample_num = train + test
+    batch = Must be equal to the batch size data generation, Dafault is set to 20 in both places
+    T_in = [0,T_in] initial interval
+    T = (t_in, T_in+T] later interva;
+    size x size = simulation resolution
+    """
     reader = MatReader(path1)
     train_a = None
     train_u = None

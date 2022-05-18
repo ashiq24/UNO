@@ -1,4 +1,4 @@
-
+# Codes for section: Results on Navier Stocks Equation (3D)
 import torch
 import numpy as np
 import torch.nn as nn
@@ -21,44 +21,55 @@ np.random.seed(0)
 
 
 class SpectralConv3d_UNO(nn.Module):
-    def __init__(self, in_channels, out_channels,D1,D2,D3, modes1=None, modes2=None, modes3=None):
+    def __init__(self, in_codim, out_codim,D1,D2,D3, modes1=None, modes2=None, modes3=None):
         super(SpectralConv3d_UNO, self).__init__()
 
         """
-        3D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        D1,D2,D3 are output dimensions (x,y,t)
-        modes1,modes2,modes3 = Number of fourier coefficinets to consider along each spectral dimesion   
+        2D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
+        D1 = Default output grid size along x (or 1st dimension) 
+        D2 = Default output grid size along y ( or 2nd dimension)
+        D3 = Default output grid size along time t ( or 3rd dimension)
+        Ratio of grid size of the input and output grid size (D1,D2,D3) implecitely 
+        set the expansion or contraction farctor along each dimension.
+        modes1, modes2, modes3 = Number of fourier modes to consider for the ontegral operator
+                                Number of modes must be compatibale with the input grid size 
+                                and desired output grid size.
+                                i.e., modes1 <= min( dim1/2, input_dim1/2). 
+                                Here input_dim1 is the grid size along x axis (or first dimension) of the input.
+                                Other modes also have the same constrain.
+        in_codim = Input co-domian dimension
+        out_codim = output co-domain dimension   
         """
-        in_channels = int(in_channels)
-        out_channels = int(out_channels)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        in_codim = int(in_codim)
+        out_codim = int(out_codim)
+        self.in_channels = in_codim
+        self.out_channels = out_codim
         self.d1 = D1
         self.d2 = D2
         self.d3 = D3
         if modes1 is not None:
-            self.modes1 = modes1 #Number of Fourier modes to multiply, at most floor(N/2) + 1
+            self.modes1 = modes1 
             self.modes2 = modes2
             self.modes3 = modes3 
         else:
-            self.modes1 = D1 #Will take the maximum number of possiblel modes for given output dimension
+            self.modes1 = D1 
             self.modes2 = D2
             self.modes3 = D3//2+1
 
-        self.scale = (1 / (2*in_channels))**(1.0/2.0)
-        self.weights1 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.randn(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.scale = (1 / (2*in_codim))**(1.0/2.0)
+        self.weights1 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights3 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights4 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
 
     # Complex multiplication
     def compl_mul3d(self, input, weights):
-        # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+
         return torch.einsum("bixyz,ioxyz->boxyz", input, weights)
 
     def forward(self, x, D1 = None,D2=None,D3=None):
         """
-        D1,D2,D3 are the output dimensions (x,y,t)
+        D1,D2,D3 are the output grid size along (x,y,t)
         """
         if D1 is not None:
             self.d1 = D1
@@ -66,9 +77,9 @@ class SpectralConv3d_UNO(nn.Module):
             self.d3 = D3   
 
         batchsize = x.shape[0]
-        #Compute Fourier coeffcients up to factor of e^(- something constant)
+
         x_ft = torch.fft.rfftn(x, dim=[-3,-2,-1])
-        # Multiply relevant Fourier modes
+
         out_ft = torch.zeros(batchsize, self.out_channels, self.d1, self.d2, self.d3//2 + 1, dtype=torch.cfloat, device=x.device)
 
         out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
@@ -85,9 +96,9 @@ class SpectralConv3d_UNO(nn.Module):
         return x
 
 class pointwise_op_3D(nn.Module):
-    def __init__(self, in_channel, out_channel,dim1, dim2,dim3):
+    def __init__(self, in_codim, out_codim,dim1, dim2,dim3):
         super(pointwise_op_3D,self).__init__()
-        self.conv = nn.Conv3d(int(in_channel), int(out_channel), 1)
+        self.conv = nn.Conv3d(int(in_codim), int(out_codim), 1)
         self.dim1 = int(dim1)
         self.dim2 = int(dim2)
         self.dim3 = int(dim3)
@@ -129,17 +140,26 @@ class OperatorBlock_3D(nn.Module,):
 
 class Uno3D_T40(nn.Module):
     """
-        The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
-        2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the first 10 timesteps (u(1), ..., u(10)).
-        input shape: (batchsize, x=64, y=64, t=10, c=1)
-        output: the solution of the next 40 timesteps
-        output shape: (batchsize, x=64, y=64, t=40, c=1)
-        """
+    The overall network. It contains 4 layers of the Fourier layer.
+    1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
+    2. 4 layers of the integral operators u' = (W + K)(u).
+        W defined by self.w; K defined by self.conv .
+    3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+    
+    input: the solution of the first 10 timesteps (u(1), ..., u(10)).
+    input shape: (batchsize, x=S, y=S, t=T, c=1)
+    output: the solution of the next 40 timesteps
+    output shape: (batchsize, x=S, y=S, t=4*T, c=1)
+    (Note that model is dicretization invarient in both spatial (x,y) and time (t) domain)
+    S,S,T = grid size along x,y and t (input function)
+    S,S,4*T = grid size along x,y and t (output function)
+    
+    in_width = 4; [a(x,y,x),x,y,z]
+    with = uplifting dimesion
+    pad = padding amount
+    pad_both = boolean, if true pad both size of the domain
+    factor = scaling factor of the co-domain dimesions 
+    """
     def __init__(self, in_width, width,pad = 1, factor = 1, pad_both = False):
         super(Uno3D_T40, self).__init__()
 
@@ -247,11 +267,25 @@ class Uno3D_T40(nn.Module):
 # ########   
 class Uno3D_T20(nn.Module):
     """
+    The overall network. It contains 4 layers of the Fourier layer.
+    1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
+    2. 4 layers of the integral operators u' = (W + K)(u).
+        W defined by self.w; K defined by self.conv .
+    3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+    
     input: the solution of the first 10 timesteps (u(1), ..., u(10)).
-    input shape: (batchsize, x=64, y=64, t=10, c=1)
+    input shape: (batchsize, x=S, y=S, t=T, c=1)
     output: the solution of the next 20 timesteps
-    output shape: (batchsize, x=64, y=64, t=20, c=1)
-
+    output shape: (batchsize, x=S, y=S, t=2*T, c=1)
+    
+    S,S,T = grid size along x,y and t (input function)
+    S,S,2*T = grid size along x,y and t (output function)
+    
+    in_width = 4; [a(x,y,x),x,y,z]
+    with = projection dimesion
+    pad = padding amount
+    pad_both = boolean, if true pad both size of the domain
+    factor = scaling factor of the co-domain dimesions 
     """
     def __init__(self, in_width, width,pad = 2, factor = 1, pad_both = False):
         super(Uno3D_T20, self).__init__()
@@ -358,11 +392,25 @@ class Uno3D_T20(nn.Module):
     
 class Uno3D_T10(nn.Module):
     """
+    The overall network. It contains 4 layers of the Fourier layer.
+    1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
+    2. 4 layers of the integral operators u' = (W + K)(u).
+        W defined by self.w; K defined by self.conv .
+    3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+    
     input: the solution of the first 10 timesteps (u(1), ..., u(10)).
-    input shape: (batchsize, x=64, y=64, t=10, c=1)
+    input shape: (batchsize, x=S, y=S, t=T, c=1)
     output: the solution of the next 10 timesteps
-    output shape: (batchsize, x=64, y=64, t=10, c=1)
-
+    output shape: (batchsize, x=S, y=S, t=T, c=1)
+    
+    S,S,T = grid size along x,y and t (input function)
+    S,S,T = grid size along x,y and t (output function)
+    
+    in_width = 4; [a(x,y,x),x,y,z]
+    with = projection dimesion
+    pad = padding amount
+    pad_both = boolean, if true pad both size of the domain
+    factor = scaling factor of the co-domain dimesions 
     """
     def __init__(self, in_width, width,pad = 2, factor = 1, pad_both = False):
         super(Uno3D_T10, self).__init__()
@@ -469,11 +517,25 @@ class Uno3D_T10(nn.Module):
     
 class Uno3D_T9(nn.Module):
     """
+    The overall network. It contains 4 layers of the Fourier layer.
+    1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
+    2. 4 layers of the integral operators u' = (W + K)(u).
+        W defined by self.w; K defined by self.conv .
+    3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+    
     input: the solution of the first 6 timesteps (u(1), ..., u(10)).
-    input shape: (batchsize, x=64, y=64, t=6, c=1)
+    input shape: (batchsize, x=S, y=S, t=T, c=1)
     output: the solution of the next 9 timesteps
-    output shape: (batchsize, x=64, y=64, t=9, c=1)
-
+    output shape: (batchsize, x=S, y=S, t=int(1.5*T), c=1)
+    
+    S,S,T = grid size along x,y and t (input function)
+    S,S,int(1.5*T) = grid size along x,y and t (output function)
+    
+    in_width = 4; [a(x,y,x),x,y,z]
+    with = projection dimesion
+    pad = padding amount
+    pad_both = boolean, if true pad both size of the domain
+    factor = scaling factor of the co-domain dimesions 
     """
     def __init__(self, in_width, width,pad = 2, factor = 1, pad_both = False):
         super(Uno3D_T9, self).__init__()

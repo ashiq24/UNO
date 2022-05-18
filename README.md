@@ -1,7 +1,9 @@
 # U-NO
 This repository contains code accompaning the paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
+
 ## Requirements
 pytorch 1.11.0
+
 ## Files
 darcy_uno2d.py - Script for  UNO performing 2D spatial covolution for solving Darcy Flow equation. (Section 4.2, [paper](https://arxiv.org/pdf/2204.11127.pdf))
 

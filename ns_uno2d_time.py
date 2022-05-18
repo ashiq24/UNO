@@ -57,4 +57,4 @@ model = UNO_P(inwidth,width)
 summary(model, (64, 64,10))
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,\
             weight_path = 'UNO-10e3.pt',T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,\
-            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.7,weight_dec = 1e-3)
+            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.7,weight_decay = 1e-3)

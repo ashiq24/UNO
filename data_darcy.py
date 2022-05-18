@@ -21,9 +21,13 @@ from random import randint
 
 
 def load_data_darcy(r,ntrain,ntest,TRAIN_PATH):
+    """
+    r = Subsampling rate
+    ntrain, ntest = will return the data spliting into two with ntrain and ntest samples 
+    """
     h = int(((421 - 1)/r) + 1)
     s = h
-    print(s)
+    print("resolution S ",s)
     reader = MatReader(TRAIN_PATH)
     x_train = reader.read_field('coeff')[:ntrain,::r,::r][:,:s,:s]
     y_train = reader.read_field('sol')[:ntrain,::r,::r][:,:s,:s]
@@ -31,13 +35,6 @@ def load_data_darcy(r,ntrain,ntest,TRAIN_PATH):
     reader.load_file(TRAIN_PATH)
     x_test = reader.read_field('coeff')[-ntest:,::r,::r][:,:s,:s]
     y_test = reader.read_field('sol')[-ntest:,::r,::r][:,:s,:s]
-
-    #x_normalizer = UnitGaussianNormalizer(x_train)
-    #x_train = x_normalizer.encode(x_train)
-    #x_test = x_normalizer.encode(x_test)
-
-    #y_normalizer = UnitGaussianNormalizer(y_train)
-    #y_train = y_normalizer.encode(y_train)
 
     x_train = x_train.reshape(ntrain,s,s,1)
     x_test = x_test.reshape(ntest,s,s,1)

@@ -26,8 +26,8 @@ import sys
 import logging
 
 
-train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200," /piececonst_r421_N1024_smooth1.mat")
-train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"/piececonst_r421_N1024_smooth2.mat")
+train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200,"Path to data file1")
+train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"Path to data file2")
 
 sub = 2 # subsampling rate 
 S = 211 # Grid size/ resolution
@@ -38,8 +38,7 @@ ntrain = 1400
 nval = 200
 ntest = 400
 batch_size = 16
-modes = 12
-width = 32
+width = 32 #
 inwidth = 3
 epochs = 700
 a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
@@ -63,9 +62,10 @@ train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(train_
 test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a, test_u), batch_size=batch_size, shuffle=False)
 val_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(val_a, val_u), batch_size=batch_size, shuffle=True)
 
-model = UNO(inwidth,width,pad = 5).cuda()
+model = UNO(inwidth,width,pad = 8).cuda()
+#model = UNO_P_13(inwidth,width,pad = 8).cuda()
 summary(model, (S, S,1))
 gc.collect()
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,S,'Darcy-D13-421.pt',\
             T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.001,\
-            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.5,weight_dec = 1e-3)
+            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.7,weight_decay = 1e-3)

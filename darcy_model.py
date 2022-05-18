@@ -1,4 +1,5 @@
-#from turtle import forward
+# Codes for section: Results on Darcy Flow Equation
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,16 +21,28 @@ torch.manual_seed(0)
 np.random.seed(0)
 
 class SpectralConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, dim1, dim2,modes1 = None, modes2 = None):
+    def __init__(self, in_codim, out_codim, dim1, dim2,modes1 = None, modes2 = None):
         super(SpectralConv2d, self).__init__()
 
         """
-        2D Fourier layer. It does FFT, linear transform, and Inverse FFT.    
+        2D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
+        dim1 = Default output grid size along x (or 1st dimension) 
+        dim2 = Default output grid size along y ( or 2nd dimension)
+        Ratio of grid size of the input and output grid size (dim1,dim2) implecitely 
+        set the expansion or contraction farctor along each dimension.
+        modes1, modes2 = Number of fourier modes to consider for the ontegral operator.
+                        Number of modes must be compatibale with the input grid size 
+                        and desired output grid size.
+                        i.e., modes1 <= min( dim1/2, input_dim1/2). 
+                        Here input_dim1 is the grid size along x axis (or first dimension) of the input.
+                        Other modes also have the same constrain.
+        in_codim = Input co-domian dimension
+        out_codim = output co-domain dimension
         """
-        in_channels = int(in_channels)
-        out_channels = int(out_channels)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        in_codim = int(in_codim)
+        out_codim = int(out_codim)
+        self.in_channels = in_codim
+        self.out_channels = out_codim
         self.dim1 = dim1 #output dimensions
         self.dim2 = dim2
         if modes1 is not None:
@@ -38,9 +51,9 @@ class SpectralConv2d(nn.Module):
         else:
             self.modes1 = dim1//2-1 
             self.modes2 = dim2//2-1
-        self.scale = (1 / (2*in_channels))**(1.0/2.0)
-        self.weights1 = nn.Parameter(self.scale * (torch.randn(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat)))
-        self.weights2 = nn.Parameter(self.scale * (torch.randn(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat)))
+        self.scale = (1 / (2*in_codim))**(1.0/2.0)
+        self.weights1 = nn.Parameter(self.scale * (torch.randn(in_codim, out_codim, self.modes1, self.modes2, dtype=torch.cfloat)))
+        self.weights2 = nn.Parameter(self.scale * (torch.randn(in_codim, out_codim, self.modes1, self.modes2, dtype=torch.cfloat)))
 
     # Complex multiplication
     def compl_mul2d(self, input, weights):
@@ -48,6 +61,13 @@ class SpectralConv2d(nn.Module):
         return torch.einsum("bixy,ioxy->boxy", input, weights)
 
     def forward(self, x, dim1 = None,dim2 = None):
+        '''
+        x = Input
+        dim1 = output grid size along x (or 1st dimension) 
+        dim2 = output grid size along y ( or 2nd dimension)
+        Ratio of grid size of the input and output grid size (dim1,dim2) implecitely 
+        set the expansion or contraction farctor along each dimension.
+        '''
         if dim1 is not None:
             self.dim1 = dim1
             self.dim2 = dim2
@@ -68,6 +88,12 @@ class SpectralConv2d(nn.Module):
 
 
 class pointwise_op(nn.Module):
+    """ 
+    dim1 = Default output grid size along x (or 1st dimension) 
+    dim2 = Default output grid size along y ( or 2nd dimension)
+    in_codim = Input co-domian dimension
+    out_codim = output co-domain dimension
+    """
     def __init__(self, in_channel, out_channel,dim1, dim2):
         super(pointwise_op,self).__init__()
         self.conv = nn.Conv2d(int(in_channel), int(out_channel), 1)
@@ -87,8 +113,27 @@ class pointwise_op(nn.Module):
 #  UNO+ achitechtures
 ###############
 class UNO_P_13(nn.Module):
-    def __init__(self, in_width, width,pad = 5, factor = 1):
+    def __init__(self, in_width, width,pad = 8, factor = 1):
         super(UNO_P_13, self).__init__()
+        """
+        The overall network. It contains 13 integral operator.
+        1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
+        2. 4 layers of the integral operators u' = (W + K)(u).
+            W defined by self.w; K defined by self.conv .
+        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+
+
+        input: Diffusion coefficient (a)
+        input shape: (batchsize, x=S, y=S, 1, 1)
+        output: the solution of the next timesteps
+        output shape: (batchsize, x=S, y=S, 1, 1)
+        Spatial Resulution = SxS
+
+        in_width = 3 ;  [a(x,y),x,y]
+        with = Up-lifting dimension
+        pad = padding the domian for non-periodic input
+        factor = factor for scaling up/down the co-domain dimension at each integral operator
+        """
 
         self.in_width = in_width # input channel
         self.width = width 
@@ -262,10 +307,11 @@ class UNO_P_13(nn.Module):
         gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
         gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
         return torch.cat((gridx, gridy), dim=-1).to(device)
-##9 layers
-    
+
+# For the following classes every parameters acts the same as UNO_P_13.
+##UNO+ 9 layers   
 class UNO_P_9(nn.Module):
-    def __init__(self, in_width, width,pad = 5, factor = 1):
+    def __init__(self, in_width, width,pad = 8, factor = 1):
         super(UNO_P_9, self).__init__()
 
         self.in_width = in_width # input channel
@@ -412,7 +458,7 @@ class UNO_P_9(nn.Module):
 ##########
 
 class UNO(nn.Module):
-    def __init__(self,in_width, width,pad = 6, factor = 3/4):
+    def __init__(self,in_width, width,pad = 8, factor = 3/4):
         super(UNO, self).__init__()
         
         self.in_width = in_width # input channel
