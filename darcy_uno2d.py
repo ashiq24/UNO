@@ -31,15 +31,17 @@ train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"Path to da
 
 sub = 2 # subsampling rate 
 S = 211 # Grid size/ resolution
-T_in = 1
-T_f = 1 
+T_in = 1 # single input
+T_f = 1 #single output
+
 # number of train, test and validation samples
 ntrain = 1400
 nval = 200
 ntest = 400
+
 batch_size = 16
-width = 32 #
-inwidth = 3
+width = 32 # uplifting dimension
+inwidth = 3 # [a(x,y),x,y]
 epochs = 700
 a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
 u = torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
