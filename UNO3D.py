@@ -150,9 +150,9 @@ class Uno3D_T40(nn.Module):
     input shape: (batchsize, x=S, y=S, t=T, c=1)
     output: the solution of the next 40 timesteps
     output shape: (batchsize, x=S, y=S, t=4*T, c=1)
+    S,S,T = grid size along x,y and t (of input function)
+    S,S,4*T = grid size along x,y and t (of output function)
     (Note that model is dicretization invarient in both spatial (x,y) and time (t) domain)
-    S,S,T = grid size along x,y and t (input function)
-    S,S,4*T = grid size along x,y and t (output function)
     
     in_width = 4; [a(x,y,x),x,y,z]
     with = uplifting dimesion

@@ -19,9 +19,9 @@ import gc
 import math
 
 
-S = 64
+S = 64 # resolution SxS
 T_in = 10 # input time interval (0 - T_in)
-T_f = 40 # output time interval (T_in - T_in+T_f)
+T_f = 40 # output time interval (T_in -  = T_in+T_f)
 ntrain = 1720 # number of training instances 
 ntest = 480 # number of test instances 
 nval = 200 # number of validation instances 
@@ -29,10 +29,11 @@ batch_size = 20
 width = 32 # Uplifting dimesion
 inwidth = 12 # dimension of UNO input ( 10 time step + (x,y) location )
 epochs = 700
-train_a_1, train_u_1, test_a_1, test_u_1 = load_NS_("./ns_data_1200_T50_v001_dt0001.mat"\
-                                                    ,1000,200,Sample_num = 1200,T_in=T_in, T = T_f)
-train_a_2, train_u_2, test_a_2, test_u_2 = load_NS_("./NS_data/ns_data_2_1200_T50_v001_dt0001.mat"\
-                                                    ,1000 ,200,Sample_num = 1200,T_in=T_in, T = T_f)
+# Following code load data from two separate files containing Navier-Stokes equation simulation
+train_a_1, train_u_1, test_a_1, test_u_1 = load_NS_("path to navier stokes simulation with viscosity 1e-3 with 1200 instances"\
+                                                    ,1000,200,Sample_num = 1200,T_in=T_in, T = T_f, size = S)
+train_a_2, train_u_2, test_a_2, test_u_2 = load_NS_("path to navier stokes simulation with viscosity 1e-3 with 1200 instances"\
+                                                    ,1000 ,200,Sample_num = 1200,T_in=T_in, T = T_f, size=S)
 a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
 u = torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
 indexs = [i for i in range(a.shape[0])]
@@ -53,8 +54,7 @@ val_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(val_a, v
 test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a, test_u), \
                                           batch_size=batch_size, shuffle=False)
 
-model = UNO_P(inwidth,width)
+model = UNO(inwidth,width)
 summary(model, (64, 64,10))
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,\
-            weight_path = 'UNO-10e3.pt',T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,\
-            x_normalizer = None, y_normalizer = None,scheduler_step= 100,scheduler_gamma= 0.7,weight_decay = 1e-3)
+            weight_path = 'UNO-10e3.pt',T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,scheduler_step= 100,scheduler_gamma= 0.7,weight_decay = 1e-3)

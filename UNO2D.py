@@ -114,9 +114,9 @@ class UNO_P(nn.Module):
 
 
         input: the solution of the first 10 timesteps (u(1), ..., u(10)).
-        input shape: (batchsize, x=S, y=S, t=10, c=1)
+        input shape: (batchsize, x=S, y=S, t=10)
         output: the solution of the next timesteps
-        output shape: (batchsize, x=S, y=S, t=1, c=1)
+        output shape: (batchsize, x=S, y=S, t=1)
         Here SxS is the spatial resolution
 
         in_width = 12 (10 input time steps + (x,y) location)

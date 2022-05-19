@@ -468,7 +468,7 @@ class UNO(nn.Module):
         
         self.fc = nn.Linear(self.in_width, self.width//2)
 
-        self.fc0 = nn.Linear(self.in_width//2, self.width) # input channel is 3: (a(x, y), x, y)
+        self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
         
         self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,64, 64, 28, 28)
 

@@ -14,7 +14,7 @@ from Adam import Adam
 
 
 def train_model(model,train_loader, val_loader, test_loader,ntrain,nval,ntest,s,wieght_path,T_f=10,step=1,batch_size=20,epochs=150,learning_rate= 0.0001,\
-scheduler_step= 50,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_normalizer = None, weight_decay = 1e-3):
+scheduler_step= 50,scheduler_gamma= 0.5,device = 'cuda', weight_decay = 1e-3):
     
     optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay,amsgrad = False)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=scheduler_step, gamma=scheduler_gamma)
@@ -29,8 +29,6 @@ scheduler_step= 50,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_n
             batch_size = x.shape[0]
             optimizer.zero_grad()
             out = model(x).reshape(batch_size, s, s)
-            #out = y_normalizer.decode(out)
-            #y = y_normalizer.decode(y)
 
             loss = myloss(out.view(batch_size,-1), y.view(batch_size,-1))
             loss.backward()
@@ -50,7 +48,6 @@ scheduler_step= 50,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_n
                 x, y = x.cuda(), y.cuda()
                 batch_size = x.shape[0]
                 out = model(x).reshape(batch_size, s, s)
-                #out = y_normalizer.decode(out)
 
                 val_l2 += myloss(out.view(batch_size,-1), y.view(batch_size,-1)).item()
 
@@ -72,7 +69,6 @@ scheduler_step= 50,scheduler_gamma= 0.5,device = 'cuda',x_normalizer = None, y_n
             x, y = x.cuda(), y.cuda()
             batch_size = x.shape[0]
             out = model(x).reshape(batch_size, s, s)
-            #out = y_normalizer.decode(out)
 
             test_l2 += myloss(out.view(batch_size,-1), y.view(batch_size,-1)).item()
 
