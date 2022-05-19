@@ -26,8 +26,8 @@ import sys
 import logging
 
 
-#train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200,"Path to data file1")
-#train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"Path to data file2")
+train_a_1, train_u_1, test_a_1, test_u_1 = load_data_darcy(2,800,200,"Path to data file1")
+train_a_2, train_u_2, test_a_2, test_u_2 = load_data_darcy(2,800,200,"Path to data file2")
 
 sub = 2 # subsampling rate 
 S = 211 # Grid size/ resolution
@@ -42,8 +42,8 @@ batch_size = 16
 width = 32 #
 inwidth = 3
 epochs = 700
-a = torch.rand((2000,211,211,1))#torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
-u = torch.rand((2000,211,211,1))#torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
+a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
+u = torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
 
 indexs = [i for i in range(a.shape[0])]
 random.shuffle(indexs)
