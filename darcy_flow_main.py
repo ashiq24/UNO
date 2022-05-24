@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from data_darcy import *
+from data_load_darcy import *
 import random
 import matplotlib.pyplot as plt
-from darcy_model import UNO,UNO_P_13,UNO_P_9
+from darcy_flow_uno2d import UNO,UNO_P_13,UNO_P_9
 import operator
 from functools import reduce
 from functools import partial

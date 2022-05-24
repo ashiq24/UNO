@@ -3,14 +3,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from data_ns import *
+from data_load_navier_stocks import *
 import matplotlib.pyplot as plt
-from UNO2D import UNO, UNO_P
+from navier_stokes_uno2d import UNO, UNO_P
 import operator
 import random
 from functools import reduce
 from functools import partial
-from train_2D_t import train_model
+from ns_train_2d import train_model
 from timeit import default_timer
 from utilities3 import *
 from Adam import Adam
