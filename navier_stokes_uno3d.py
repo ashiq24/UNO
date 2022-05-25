@@ -21,15 +21,15 @@ np.random.seed(0)
 
 
 class SpectralConv3d_UNO(nn.Module):
-    def __init__(self, in_codim, out_codim,D1,D2,D3, modes1=None, modes2=None, modes3=None):
+    def __init__(self, in_codim, out_codim,dim1,dim2,dim3, modes1=None, modes2=None, modes3=None):
         super(SpectralConv3d_UNO, self).__init__()
 
         """
-        2D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        D1 = Default output grid size along x (or 1st dimension) 
-        D2 = Default output grid size along y ( or 2nd dimension)
-        D3 = Default output grid size along time t ( or 3rd dimension)
-        Ratio of grid size of the input and output grid size (D1,D2,D3) implecitely 
+        3D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
+        dim1 = Default output grid size along x (or 1st dimension of output domain ) 
+        dim2 = Default output grid size along y (or 2nd dimension of output domain)
+        dim3 = Default output grid size along time t ( or 3rd dimension of output domain)
+        Ratio of grid size of the input and output grid size (dim1,dim2,dim3) implecitely 
         set the expansion or contraction farctor along each dimension.
         modes1, modes2, modes3 = Number of fourier modes to consider for the ontegral operator
                                 Number of modes must be compatibale with the input grid size 
@@ -44,17 +44,17 @@ class SpectralConv3d_UNO(nn.Module):
         out_codim = int(out_codim)
         self.in_channels = in_codim
         self.out_channels = out_codim
-        self.d1 = D1
-        self.d2 = D2
-        self.d3 = D3
+        self.dim1 = dim1
+        self.dim2 = dim2
+        self.dim3 = dim3
         if modes1 is not None:
             self.modes1 = modes1 
             self.modes2 = modes2
             self.modes3 = modes3 
         else:
-            self.modes1 = D1 
-            self.modes2 = D2
-            self.modes3 = D3//2+1
+            self.modes1 = dim1 
+            self.modes2 = dim2
+            self.modes3 = dim3//2+1
 
         self.scale = (1 / (2*in_codim))**(1.0/2.0)
         self.weights1 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
@@ -67,20 +67,20 @@ class SpectralConv3d_UNO(nn.Module):
 
         return torch.einsum("bixyz,ioxyz->boxyz", input, weights)
 
-    def forward(self, x, D1 = None,D2=None,D3=None):
+    def forward(self, x, dim1 = None,dim2=None,dim3=None):
         """
-        D1,D2,D3 are the output grid size along (x,y,t)
+        dim1,dim2,dim3 are the output grid size along (x,y,t)
         """
-        if D1 is not None:
-            self.d1 = D1
-            self.d2 = D2
-            self.d3 = D3   
+        if dim1 is not None:
+            self.dim1 = dim1
+            self.dim2 = dim2
+            self.dim3 = dim3   
 
         batchsize = x.shape[0]
 
         x_ft = torch.fft.rfftn(x, dim=[-3,-2,-1])
 
-        out_ft = torch.zeros(batchsize, self.out_channels, self.d1, self.d2, self.d3//2 + 1, dtype=torch.cfloat, device=x.device)
+        out_ft = torch.zeros(batchsize, self.out_channels, self.dim1, self.dim2, self.dim3//2 + 1, dtype=torch.cfloat, device=x.device)
 
         out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             self.compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
@@ -92,7 +92,7 @@ class SpectralConv3d_UNO(nn.Module):
             self.compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         #Return to physical space
-        x = torch.fft.irfftn(out_ft, s=(self.d1, self.d2, self.d3))
+        x = torch.fft.irfftn(out_ft, s=(self.dim1, self.dim2, self.dim3))
         return x
 
 class pointwise_op_3D(nn.Module):
@@ -116,14 +116,14 @@ class pointwise_op_3D(nn.Module):
         return x_out
 
 class OperatorBlock_3D(nn.Module,):
-    def __init__(self, in_channel, out_channel,dim1, dim2,dim3,modes1,modes2,modes3, Normalize = True,Non_Lin = True):
+    def __init__(self, in_codim, out_codim,dim1, dim2,dim3,modes1,modes2,modes3, Normalize = True,Non_Lin = True):
         super(OperatorBlock_3D,self).__init__()
-        self.conv = SpectralConv3d_UNO(in_channel, out_channel, dim1,dim2,dim3,modes1,modes2,modes3)
-        self.w = pointwise_op_3D(in_channel, out_channel, dim1,dim2,dim3)
+        self.conv = SpectralConv3d_UNO(in_codim, out_codim, dim1,dim2,dim3,modes1,modes2,modes3)
+        self.w = pointwise_op_3D(in_codim, out_codim, dim1,dim2,dim3)
         self.normalize = Normalize
         self.non_lin = Non_Lin
         if Normalize:
-            self.normalize_layer = torch.nn.InstanceNorm3d(int(out_channel),affine=True)
+            self.normalize_layer = torch.nn.InstanceNorm3d(int(out_codim),affine=True)
 
 
     def forward(self,x, dim1 = None, dim2 = None, dim3 = None):

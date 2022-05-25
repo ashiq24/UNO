@@ -25,8 +25,8 @@ class SpectralConv2d(nn.Module):
 
         """
         2D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        dim1 = Default output grid size along x (or 1st dimension) 
-        dim2 = Default output grid size along y ( or 2nd dimension)
+        dim1 = Default output grid size along x (or 1st dimension of output domain) 
+        dim2 = Default output grid size along y ( or 2nd dimension of output domain)
         Ratio of grid size of the input and output grid size (dim1,dim2) implecitely 
         set the expansion or contraction farctor along each dimension.
         modes1, modes2 = Number of fourier modes to consider for the ontegral operator
@@ -78,7 +78,6 @@ class SpectralConv2d(nn.Module):
         #Return to physical space
         x = torch.fft.irfft2(out_ft, s=(self.dim1, self.dim2))
         return x
-
 
 class pointwise_op(nn.Module):
     """ 
@@ -244,7 +243,7 @@ class UNO_P(nn.Module):
         return torch.cat((gridx, gridy), dim=-1).to(device)
 
 #####
-#  The following models UNO has same sets of parameter 
+# The following models UNO has same sets of parameter 
 # it has different scaling factors for domains and co-domains.
 # ####    
 class UNO(nn.Module):
