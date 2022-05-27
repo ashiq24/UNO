@@ -5,6 +5,11 @@ This repository contains code accompaning the paper: [U-NO: U-shaped Neural Oper
 pytorch 1.11.0
 
 ## Files
+
+integral_operators.py - Contains codes for Non-linear integral operators for 1D, 2D, and 3D functions.
+
+**UNO_Tutorial.ipynb** - A step by step tutorial for using and buidling U-NO. Link to Google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1f1WYsjAgIjJRFtfQYYnZCZsxl602MMPX?usp=sharing)
+
 darcy_flow_main.py - Script for running UNO performing 2D spatial covolution for solving Darcy Flow equation. 
 
 ns_uno2d_main.py - Script for UNO with recurrent strcuture in time for Navier-Stocks equation.
