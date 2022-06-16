@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 import math
 import matplotlib.pyplot as plt
-
+from integral_operators import *
 import operator
 from functools import reduce
 from functools import partial
@@ -19,95 +19,6 @@ from Adam import Adam
 
 torch.manual_seed(0)
 np.random.seed(0)
-
-class SpectralConv2d(nn.Module):
-    def __init__(self, in_codim, out_codim, dim1, dim2,modes1 = None, modes2 = None):
-        super(SpectralConv2d, self).__init__()
-
-        """
-        2D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        dim1 = Default output grid size along x (or 1st dimension) 
-        dim2 = Default output grid size along y ( or 2nd dimension)
-        Ratio of grid size of the input and output grid size (dim1,dim2) implecitely 
-        set the expansion or contraction farctor along each dimension.
-        modes1, modes2 = Number of fourier modes to consider for the ontegral operator.
-                        Number of modes must be compatibale with the input grid size 
-                        and desired output grid size.
-                        i.e., modes1 <= min( dim1/2, input_dim1/2). 
-                        Here input_dim1 is the grid size along x axis (or first dimension) of the input.
-                        Other modes also have the same constrain.
-        in_codim = Input co-domian dimension
-        out_codim = output co-domain dimension
-        """
-        in_codim = int(in_codim)
-        out_codim = int(out_codim)
-        self.in_channels = in_codim
-        self.out_channels = out_codim
-        self.dim1 = dim1 #output dimensions
-        self.dim2 = dim2
-        if modes1 is not None:
-            self.modes1 = modes1 #Number of Fourier modes to multiply,
-            self.modes2 = modes2
-        else:
-            self.modes1 = dim1//2-1 
-            self.modes2 = dim2//2-1
-        self.scale = (1 / (2*in_codim))**(1.0/2.0)
-        self.weights1 = nn.Parameter(self.scale * (torch.randn(in_codim, out_codim, self.modes1, self.modes2, dtype=torch.cfloat)))
-        self.weights2 = nn.Parameter(self.scale * (torch.randn(in_codim, out_codim, self.modes1, self.modes2, dtype=torch.cfloat)))
-
-    # Complex multiplication
-    def compl_mul2d(self, input, weights):
-        # (batch, in_channel, x,y ), (in_channel, out_channel, x,y) -> (batch, out_channel, x,y)
-        return torch.einsum("bixy,ioxy->boxy", input, weights)
-
-    def forward(self, x, dim1 = None,dim2 = None):
-        '''
-        x = Input
-        dim1 = output grid size along x (or 1st dimension) 
-        dim2 = output grid size along y ( or 2nd dimension)
-        Ratio of grid size of the input and output grid size (dim1,dim2) implecitely 
-        set the expansion or contraction farctor along each dimension.
-        '''
-        if dim1 is not None:
-            self.dim1 = dim1
-            self.dim2 = dim2
-        batchsize = x.shape[0]
-        #Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfft2(x)
-
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels,  self.dim1, self.dim2//2 + 1 , dtype=torch.cfloat, device=x.device)
-        out_ft[:, :, :self.modes1, :self.modes2] = \
-            self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_ft[:, :, -self.modes1:, :self.modes2] = \
-            self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
-
-        #Return to physical space
-        x = torch.fft.irfft2(out_ft, s=(self.dim1, self.dim2))
-        return x
-
-
-class pointwise_op(nn.Module):
-    """ 
-    dim1 = Default output grid size along x (or 1st dimension) 
-    dim2 = Default output grid size along y ( or 2nd dimension)
-    in_codim = Input co-domian dimension
-    out_codim = output co-domain dimension
-    """
-    def __init__(self, in_channel, out_channel,dim1, dim2):
-        super(pointwise_op,self).__init__()
-        self.conv = nn.Conv2d(int(in_channel), int(out_channel), 1)
-        self.dim1 = int(dim1)
-        self.dim2 = int(dim2)
-
-    def forward(self,x, dim1 = None, dim2 = None):
-        if dim1 is None:
-            dim1 = self.dim1
-            dim2 = self.dim2
-        x_out = self.conv(x)
-        x_out = torch.nn.functional.interpolate(x_out, size = (dim1, dim2),mode = 'bicubic',align_corners=True)
-        return x_out
-
 
 ###############
 #  UNO+ achitechtures
@@ -144,59 +55,31 @@ class UNO_P_13(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width) 
 
-        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,40, 40, 20, 20)
+        self.conv0 = OperatorBlock_2D(self.width, 2*factor*self.width,40, 40, 20, 20)
 
-        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 20, 20, 10,10)
+        self.conv1 = OperatorBlock_2D(2*factor*self.width, 4*factor*self.width, 20, 20, 10,10)
 
-        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 10, 10,5,5)
+        self.conv2 = OperatorBlock_2D(4*factor*self.width, 8*factor*self.width, 10, 10,5,5)
         
-        self.conv3 = SpectralConv2d(8*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv3 = OperatorBlock_2D(8*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv4 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv4 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv5 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv5 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv6 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv6 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv7 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv7 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv8 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv8 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv9 = SpectralConv2d(16*factor*self.width, 8*factor*self.width, 10, 10,3,3)
+        self.conv9 = OperatorBlock_2D(16*factor*self.width, 8*factor*self.width, 10, 10,3,3)
         
-        self.conv10 = SpectralConv2d(16*factor*self.width, 4*factor*self.width, 20, 20,5,5)
+        self.conv10 = OperatorBlock_2D(16*factor*self.width, 4*factor*self.width, 20, 20,5,5)
 
-        self.conv11 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 40, 40,10,10)
+        self.conv11 = OperatorBlock_2D(8*factor*self.width, 2*factor*self.width, 40, 40,10,10)
 
-        self.conv12 = SpectralConv2d(4*factor*self.width, self.width, 85, 85,20,20) # will be reshaped
-
-        #self.w_lin = pointwise_op(self.width,self.width,64, 64)
-
-        self.w0 = pointwise_op(self.width,2*factor*self.width,32, 32) #
-        
-        self.w1 = pointwise_op(2*factor*self.width, 4*factor*self.width, 16, 16) #
-        
-        self.w2 = pointwise_op(4*factor*self.width, 8*factor*self.width, 8, 8) #
-        
-        self.w3 = pointwise_op(8*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w4 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w5 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w6 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w7 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w8 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w9 = pointwise_op(16*factor*self.width, 8*factor*self.width, 16, 16)
-
-        self.w10 = pointwise_op(16*factor*self.width, 4*factor*self.width, 16, 16) #
-        
-        self.w11 = pointwise_op(8*factor*self.width, 2*factor*self.width, 32, 32)
-        
-        self.w12 = pointwise_op(4*factor*self.width, self.width, 64, 64) # will be reshaped
+        self.conv12 = OperatorBlock_2D(4*factor*self.width, self.width, 85, 85,20,20) # will be reshaped
 
         self.fc1 = nn.Linear(1*self.width, 2*self.width)
         self.fc2 = nn.Linear(2*self.width, 1)
@@ -216,76 +99,35 @@ class UNO_P_13(nn.Module):
         
         D1,D2 = x_fc0.shape[-2],x_fc0.shape[-1]
 
-        x1_c0 = self.conv0(x_fc0,D1//2,D2//2)
-        x2_c0 = self.w0(x_fc0,D1//2,D2//2)
-        x_c0 = x1_c0 + x2_c0
-        x_c0 = F.gelu(x_c0)
+        x_c0 = self.conv0(x_fc0,D1//2,D2//2)
         #print(x.shape)
 
-        x1_c1 = self.conv1(x_c0,D1//4,D2//4)
-        x2_c1 = self.w1(x_c0,D1//4,D2//4)
-        x_c1 = x1_c1 + x2_c1
-        x_c1 = F.gelu(x_c1)
-        #print(x.shape)
+        x_c1 = self.conv1(x_c0,D1//4,D2//4)
 
-        x1_c2 = self.conv2(x_c1,D1//8,D2//8)
-        x2_c2 = self.w2(x_c1,D1//8,D2//8)
-        x_c2 = x1_c2 + x2_c2
-        x_c2 = F.gelu(x_c2)
-        #print(x.shape)
+        x_c2 = self.conv2(x_c1,D1//8,D2//8)
         
-        x1_c3 = self.conv3(x_c2,D1//16,D2//16)
-        x2_c3 = self.w3(x_c2,D1//16,D2//16)
-        x_c3 = x1_c3 + x2_c3
-        x_c3 = F.gelu(x_c3)
+        x_c3 = self.conv3(x_c2,D1//16,D2//16)
         
-        x1_c4 = self.conv4(x_c3,D1//16,D2//16)
-        x2_c4 = self.w4(x_c3,D1//16,D2//16)
-        x_c4 = x1_c4 + x2_c4
-        x_c4 = F.gelu(x_c4)
+        x_c4 = self.conv4(x_c3,D1//16,D2//16)
         
-        x1_c5 = self.conv5(x_c4,D1//16,D2//16)
-        x2_c5 = self.w5(x_c4,D1//16,D2//16)
-        x_c5 = x1_c5 + x2_c5
-        x_c5 = F.gelu(x_c5)
+        x_c5 = self.conv5(x_c4,D1//16,D2//16)
         
-        x1_c6 = self.conv6(x_c5,D1//16,D2//16)
-        x2_c6 = self.w6(x_c5,D1//16,D2//16)
-        x_c6 = x1_c6 + x2_c6
-        x_c6 = F.gelu(x_c6)
+        x_c6 = self.conv6(x_c5,D1//16,D2//16)
         
-        x1_c7 = self.conv7(x_c6,D1//16,D2//16)
-        x2_c7 = self.w7(x_c6,D1//16,D2//16)
-        x_c7 = x1_c7 + x2_c7
-        x_c7 = F.gelu(x_c7)
+        x_c7 = self.conv7(x_c6,D1//16,D2//16)
         
-        x1_c8 = self.conv8(x_c7,D1//16,D2//16)
-        x2_c8 = self.w8(x_c7,D1//16,D2//16)
-        x_c8 = x1_c8 + x2_c8
-        x_c8 = F.gelu(x_c8)
+        x_c8 = self.conv8(x_c7,D1//16,D2//16)
         
-        x1_c9 = self.conv9(x_c8,D1//8,D2//8)
-        x2_c9 = self.w9(x_c8,D1//8,D2//8)
-        x_c9 = x1_c9 + x2_c9
-        x_c9 = F.gelu(x_c9)
+        x_c9 = self.conv9(x_c8,D1//8,D2//8)
         x_c9 = torch.cat([x_c9, x_c2], dim=1) 
         
-        x1_c10 = self.conv10(x_c9 ,D1//4,D2//4)
-        x2_c10 = self.w10(x_c9 ,D1//4,D2//4)
-        x_c10 = x1_c10 + x2_c10
-        x_c10 = F.gelu(x_c10)
+        x_c10 = self.conv10(x_c9 ,D1//4,D2//4)
         x_c10 = torch.cat([x_c10, x_c1], dim=1)
 
-        x1_c11 = self.conv11(x_c10 ,D1//2,D2//2)
-        x2_c11 = self.w11(x_c10 ,D1//2,D2//2)
-        x_c11 = x1_c11 + x2_c11
-        x_c11 = F.gelu(x_c11)
+        x_c11 = self.conv11(x_c10 ,D1//2,D2//2)
         x_c11 = torch.cat([x_c11, x_c0], dim=1)
 
-        x1_c12 = self.conv12(x_c11,D1,D2)
-        x2_c12 = self.w12(x_c11,D1,D2)
-        x_c12 = x1_c12 + x2_c12
-        x_c12 = F.gelu(x_c12)
+        x_c12 = self.conv12(x_c11,D1,D2)
         if self.padding!=0:
             x_c12 = x_c12[..., :-self.padding, :-self.padding]
 
@@ -323,45 +165,26 @@ class UNO_P_9(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
 
-        #self.conv_lin = SpectralConv2d(self.width, self.width,85, 85, 24, 24)
+        #self.conv_lin = OperatorBlock_2D(self.width, self.width,85, 85, 24, 24)
 
-        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,40, 40, 20, 20)
+        self.conv0 = OperatorBlock_2D(self.width, 2*factor*self.width,40, 40, 20, 20)
 
-        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 20, 20, 10,10)
+        self.conv1 = OperatorBlock_2D(2*factor*self.width, 4*factor*self.width, 20, 20, 10,10)
 
-        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 10, 10,5,5)
+        self.conv2 = OperatorBlock_2D(4*factor*self.width, 8*factor*self.width, 10, 10,5,5)
         
-        self.conv3 = SpectralConv2d(8*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv3 = OperatorBlock_2D(8*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv4 = SpectralConv2d(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
+        self.conv4 = OperatorBlock_2D(16*factor*self.width, 16*factor*self.width, 5, 5,3,3)
         
-        self.conv5 = SpectralConv2d(16*factor*self.width, 8*factor*self.width, 10, 10,3,3)
+        self.conv5 = OperatorBlock_2D(16*factor*self.width, 8*factor*self.width, 10, 10,3,3)
         
-        self.conv6 = SpectralConv2d(16*factor*self.width, 4*factor*self.width, 20, 20,5,5)
+        self.conv6 = OperatorBlock_2D(16*factor*self.width, 4*factor*self.width, 20, 20,5,5)
 
-        self.conv7 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 40, 40,10,10)
+        self.conv7 = OperatorBlock_2D(8*factor*self.width, 2*factor*self.width, 40, 40,10,10)
 
-        self.conv8 = SpectralConv2d(4*factor*self.width, self.width, 85, 85,20,20) # will be reshaped
+        self.conv8 = OperatorBlock_2D(4*factor*self.width, self.width, 85, 85,20,20) # will be reshaped
 
-        #self.w_lin = pointwise_op(self.width,self.width,64, 64)
-
-        self.w0 = pointwise_op(self.width,2*factor*self.width,32, 32) #
-        
-        self.w1 = pointwise_op(2*factor*self.width, 4*factor*self.width, 16, 16) #
-        
-        self.w2 = pointwise_op(4*factor*self.width, 8*factor*self.width, 8, 8) #
-        
-        self.w3 = pointwise_op(8*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w4 = pointwise_op(16*factor*self.width, 16*factor*self.width, 8, 8)
-        
-        self.w5 = pointwise_op(16*factor*self.width, 8*factor*self.width, 16, 16)
-
-        self.w6 = pointwise_op(16*factor*self.width, 4*factor*self.width, 16, 16) #
-        
-        self.w7 = pointwise_op(8*factor*self.width, 2*factor*self.width, 32, 32)
-        
-        self.w8 = pointwise_op(4*factor*self.width, self.width, 64, 64) # will be reshaped
 
         self.fc1 = nn.Linear(1*self.width, 2*self.width)
         self.fc2 = nn.Linear(2*self.width, 1)
@@ -381,56 +204,28 @@ class UNO_P_9(nn.Module):
         
         D1,D2 = x_fc0.shape[-2],x_fc0.shape[-1]
 
-        x1_c0 = self.conv0(x_fc0,D1//2,D2//2)
-        x2_c0 = self.w0(x_fc0,D1//2,D2//2)
-        x_c0 = x1_c0 + x2_c0
-        x_c0 = F.gelu(x_c0)
-        #print(x.shape)
+        x_c0 = self.conv0(x_fc0,D1//2,D2//2)
 
-        x1_c1 = self.conv1(x_c0,D1//4,D2//4)
-        x2_c1 = self.w1(x_c0,D1//4,D2//4)
-        x_c1 = x1_c1 + x2_c1
-        x_c1 = F.gelu(x_c1)
-        #print(x.shape)
+        x_c1 = self.conv1(x_c0,D1//4,D2//4)
 
-        x1_c2 = self.conv2(x_c1,D1//8,D2//8)
-        x2_c2 = self.w2(x_c1,D1//8,D2//8)
-        x_c2 = x1_c2 + x2_c2
-        x_c2 = F.gelu(x_c2)
-        #print(x.shape)
+        x_c2 = self.conv2(x_c1,D1//8,D2//8)
         
-        x1_c3 = self.conv3(x_c2,D1//16,D2//16)
-        x2_c3 = self.w3(x_c2,D1//16,D2//16)
-        x_c3 = x1_c3 + x2_c3
-        x_c3 = F.gelu(x_c3)
+        x_c3 = self.conv3(x_c2,D1//16,D2//16)
         
-        x1_c4 = self.conv4(x_c3,D1//16,D2//16)
-        x2_c4 = self.w4(x_c3,D1//16,D2//16)
-        x_c4 = x1_c4 + x2_c4
+        x_c4 = self.conv4(x_c3,D1//16,D2//16)
         x_c4 = F.gelu(x_c4)
  
-        x1_c5 = self.conv5(x_c4,D1//8,D2//8)
-        x2_c5 = self.w5(x_c4,D1//8,D2//8)
-        x_c5 = x1_c5 + x2_c5
-        x_c5 = F.gelu(x_c5)
+        x_c5 = self.conv5(x_c4,D1//8,D2//8)
         x_c5 = torch.cat([x_c5, x_c2], dim=1) 
         
-        x1_c6 = self.conv6(x_c5 ,D1//4,D2//4)
-        x2_c6 = self.w6(x_c5 ,D1//4,D2//4)
-        x_c6 = x1_c6 + x2_c6
-        x_c6 = F.gelu(x_c6)
+        x_c6 = self.conv6(x_c5 ,D1//4,D2//4)
         x_c6 = torch.cat([x_c6, x_c1], dim=1)
 
-        x1_c7 = self.conv7(x_c6 ,D1//2,D2//2)
-        x2_c7 = self.w7(x_c6 ,D1//2,D2//2)
-        x_c7 = x1_c7 + x2_c7
-        x_c7 = F.gelu(x_c7)
+        x_c7 = self.conv7(x_c6 ,D1//2,D2//2)
         x_c7 = torch.cat([x_c7, x_c0], dim=1)
 
-        x1_c8 = self.conv8(x_c7,D1,D2)
-        x2_c8 = self.w8(x_c7,D1,D2)
-        x_c8 = x1_c8 + x2_c8
-        x_c8 = F.gelu(x_c8)
+        x_c8 = self.conv8(x_c7,D1,D2)
+
         if self.padding!=0:
             x_c8 = x_c8[..., :-self.padding, :-self.padding]
 
@@ -470,33 +265,19 @@ class UNO(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
         
-        self.conv0 = SpectralConv2d(self.width, 2*factor*self.width,64, 64, 28, 28)
+        self.conv0 = OperatorBlock_2D(self.width, 2*factor*self.width,64, 64, 28, 28)
 
-        self.conv1 = SpectralConv2d(2*factor*self.width, 4*factor*self.width, 32, 32, 16,16)
+        self.conv1 = OperatorBlock_2D(2*factor*self.width, 4*factor*self.width, 32, 32, 16,16)
 
-        self.conv2 = SpectralConv2d(4*factor*self.width, 8*factor*self.width, 16, 16,8,8)
+        self.conv2 = OperatorBlock_2D(4*factor*self.width, 8*factor*self.width, 16, 16,8,8)
         
-        self.conv3 = SpectralConv2d(8*factor*self.width, 8*factor*self.width, 16, 16,8,8)
+        self.conv3 = OperatorBlock_2D(8*factor*self.width, 8*factor*self.width, 16, 16,8,8)
         
-        self.conv4 = SpectralConv2d(8*factor*self.width, 4*factor*self.width, 32, 32,8,8)
+        self.conv4 = OperatorBlock_2D(8*factor*self.width, 4*factor*self.width, 32, 32,8,8)
 
-        self.conv5 = SpectralConv2d(8*factor*self.width, 2*factor*self.width, 64, 64,16,16)
+        self.conv5 = OperatorBlock_2D(8*factor*self.width, 2*factor*self.width, 64, 64,16,16)
 
-        self.conv6 = SpectralConv2d(4*factor*self.width, self.width, 85, 85,28,28) # will be reshaped
-        
-        self.w0 = pointwise_op(self.width,2*factor*self.width,64, 64) #
-        
-        self.w1 = pointwise_op(2*factor*self.width, 4*factor*self.width, 32, 32) #
-        
-        self.w2 = pointwise_op(4*factor*self.width, 8*factor*self.width, 16, 16) #
-        
-        self.w3 = pointwise_op(8*factor*self.width, 8*factor*self.width, 16, 16)
-        
-        self.w4 = pointwise_op(8*factor*self.width, 4*factor*self.width, 32, 32) #
-        
-        self.w5 = pointwise_op(8*factor*self.width, 2*factor*self.width, 64, 64)
-        
-        self.w6 = pointwise_op(4*factor*self.width, self.width, 85, 85) # will be reshaped
+        self.conv6 = OperatorBlock_2D(4*factor*self.width, self.width, 85, 85,28,28) # will be reshaped
 
         self.fc1 = nn.Linear(1*self.width, 2*self.width)
         self.fc2 = nn.Linear(2*self.width, 1)
@@ -520,45 +301,22 @@ class UNO(nn.Module):
         D1,D2 = x_fc0.shape[-2],x_fc0.shape[-1]
         
 
-        x1_c0 = self.conv0(x_fc0,int(D1*self.factor),int(D2*self.factor))
-        x2_c0 = self.w0(x_fc0,int(D1*self.factor),int(D2*self.factor))
-        x_c0 = x1_c0 + x2_c0
-        x_c0 = F.gelu(x_c0)
-        #print(x.shape)
+        x_c0 = self.conv0(x_fc0,int(D1*self.factor),int(D2*self.factor))
 
-        x1_c1 = self.conv1(x_c0 ,D1//2,D2//2)
-        x2_c1 = self.w1(x_c0 ,D1//2,D2//2)
-        x_c1 = x1_c1 + x2_c1
-        x_c1 = F.gelu(x_c1)
-        #print(x.shape)
+        x_c1 = self.conv1(x_c0 ,D1//2,D2//2)
 
-        x1_c2 = self.conv2(x_c1 ,D1//4,D2//4)
-        x2_c2 = self.w2(x_c1 ,D1//4,D2//4)
-        x_c2 = x1_c2 + x2_c2
-        x_c2 = F.gelu(x_c2 )
-        #print(x.shape)
-             
-        x1_c3 = self.conv3(x_c2,D1//4,D2//4)
-        x2_c3 = self.w3(x_c2,D1//4,D2//4)
-        x_c3 = x1_c3 + x2_c3
-        x_c3 = F.gelu(x_c3) 
+        x_c2 = self.conv2(x_c1 ,D1//4,D2//4)
+    
+        x_c3 = self.conv3(x_c2,D1//4,D2//4) 
 
-        x1_c4 = self.conv4(x_c3,D1//2,D2//2)
-        x2_c4 = self.w4(x_c3,D1//2,D2//2)
-        x_c4 = x1_c4 + x2_c4
-        x_c4 = F.gelu(x_c4)
+        x_c4 = self.conv4(x_c3,D1//2,D2//2)
         x_c4 = torch.cat([x_c4, x_c1], dim=1)
 
-        x1_c5 = self.conv5(x_c4,int(D1*self.factor),int(D2*self.factor))
-        x2_c5 = self.w5(x_c4,int(D1*self.factor),int(D2*self.factor))
-        x_c5 = x1_c5 + x2_c5
-        x_c5 = F.gelu(x_c5)
+        x_c5 = self.conv5(x_c4,int(D1*self.factor),int(D2*self.factor))
         x_c5 = torch.cat([x_c5, x_c0], dim=1)
 
-        x1_c6 = self.conv6(x_c5,D1,D2)
-        x2_c6 = self.w6(x_c5,D1,D2)
-        x_c6 = x1_c6 + x2_c6
-        x_c6 = F.gelu(x_c6)
+        x_c6 = self.conv6(x_c5,D1,D2)
+
         
         if self.padding!=0:
             x_c6 = x_c6[..., 0:-self.padding, 0:-self.padding]

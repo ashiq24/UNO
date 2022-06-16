@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-
+from integral_operators import *
 import matplotlib.pyplot as plt
 from utilities3 import *
 
@@ -18,124 +18,6 @@ from Adam import Adam
 torch.manual_seed(0)
 np.random.seed(0)
 
-
-
-class SpectralConv3d_UNO(nn.Module):
-    def __init__(self, in_codim, out_codim,dim1,dim2,dim3, modes1=None, modes2=None, modes3=None):
-        super(SpectralConv3d_UNO, self).__init__()
-
-        """
-        3D Fourier layer. It does FFT, linear transform, and Inverse FFT. 
-        dim1 = Default output grid size along x (or 1st dimension of output domain ) 
-        dim2 = Default output grid size along y (or 2nd dimension of output domain)
-        dim3 = Default output grid size along time t ( or 3rd dimension of output domain)
-        Ratio of grid size of the input and output grid size (dim1,dim2,dim3) implecitely 
-        set the expansion or contraction farctor along each dimension.
-        modes1, modes2, modes3 = Number of fourier modes to consider for the ontegral operator
-                                Number of modes must be compatibale with the input grid size 
-                                and desired output grid size.
-                                i.e., modes1 <= min( dim1/2, input_dim1/2). 
-                                Here input_dim1 is the grid size along x axis (or first dimension) of the input.
-                                Other modes also have the same constrain.
-        in_codim = Input co-domian dimension
-        out_codim = output co-domain dimension   
-        """
-        in_codim = int(in_codim)
-        out_codim = int(out_codim)
-        self.in_channels = in_codim
-        self.out_channels = out_codim
-        self.dim1 = dim1
-        self.dim2 = dim2
-        self.dim3 = dim3
-        if modes1 is not None:
-            self.modes1 = modes1 
-            self.modes2 = modes2
-            self.modes3 = modes3 
-        else:
-            self.modes1 = dim1 
-            self.modes2 = dim2
-            self.modes3 = dim3//2+1
-
-        self.scale = (1 / (2*in_codim))**(1.0/2.0)
-        self.weights1 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.randn(in_codim, out_codim, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-
-    # Complex multiplication
-    def compl_mul3d(self, input, weights):
-
-        return torch.einsum("bixyz,ioxyz->boxyz", input, weights)
-
-    def forward(self, x, dim1 = None,dim2=None,dim3=None):
-        """
-        dim1,dim2,dim3 are the output grid size along (x,y,t)
-        """
-        if dim1 is not None:
-            self.dim1 = dim1
-            self.dim2 = dim2
-            self.dim3 = dim3   
-
-        batchsize = x.shape[0]
-
-        x_ft = torch.fft.rfftn(x, dim=[-3,-2,-1])
-
-        out_ft = torch.zeros(batchsize, self.out_channels, self.dim1, self.dim2, self.dim3//2 + 1, dtype=torch.cfloat, device=x.device)
-
-        out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            self.compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        out_ft[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            self.compl_mul3d(x_ft[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
-        out_ft[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            self.compl_mul3d(x_ft[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
-        out_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            self.compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
-
-        #Return to physical space
-        x = torch.fft.irfftn(out_ft, s=(self.dim1, self.dim2, self.dim3))
-        return x
-
-class pointwise_op_3D(nn.Module):
-    def __init__(self, in_codim, out_codim,dim1, dim2,dim3):
-        super(pointwise_op_3D,self).__init__()
-        self.conv = nn.Conv3d(int(in_codim), int(out_codim), 1)
-        self.dim1 = int(dim1)
-        self.dim2 = int(dim2)
-        self.dim3 = int(dim3)
-
-    def forward(self,x, dim1 = None, dim2 = None, dim3 = None):
-        """
-        dim1,dim2,dim3 are the output dimensions (x,y,t)
-        """
-        if dim1 is None:
-            dim1 = self.dim1
-            dim2 = self.dim2
-            dim3 = self.dim3
-        x_out = self.conv(x)
-        x_out = torch.nn.functional.interpolate(x_out, size = (dim1, dim2,dim3),mode = 'trilinear',align_corners=True)
-        return x_out
-
-class OperatorBlock_3D(nn.Module,):
-    def __init__(self, in_codim, out_codim,dim1, dim2,dim3,modes1,modes2,modes3, Normalize = True,Non_Lin = True):
-        super(OperatorBlock_3D,self).__init__()
-        self.conv = SpectralConv3d_UNO(in_codim, out_codim, dim1,dim2,dim3,modes1,modes2,modes3)
-        self.w = pointwise_op_3D(in_codim, out_codim, dim1,dim2,dim3)
-        self.normalize = Normalize
-        self.non_lin = Non_Lin
-        if Normalize:
-            self.normalize_layer = torch.nn.InstanceNorm3d(int(out_codim),affine=True)
-
-
-    def forward(self,x, dim1 = None, dim2 = None, dim3 = None):
-
-        x1_out = self.conv(x,dim1,dim2,dim3)
-        x2_out = self.w(x,dim1,dim2,dim3)
-        x_out = x1_out + x2_out
-        if self.normalize:
-            x_out = self.normalize_layer(x_out)
-        if self.non_lin:
-            x_out = F.gelu(x_out)
-        return x_out
 
 
 class Uno3D_T40(nn.Module):
@@ -173,23 +55,23 @@ class Uno3D_T40(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width)  
         
-        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 24,24, 5)
+        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 18,18, 4)
         
-        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  16,16,5)
+        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  14,14,4)
         
-        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 16,  8,8,5)
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 16,  6,6,4)
         
-        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 16,  4,4,8)
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 16,  3,3,7)
         
-        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 16,  4,4,8)
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 16,  3,3,7)
         
-        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 16,  4,4,8) 
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 16,  3,3,7) 
         
-        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 24,  8,8,8)
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 24,  6,6,7)
         
-        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 32,  16,16,12)
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 32,  14,14,10)
         
-        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 40,  24,24, 16) # will be reshaped
+        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 40,  18,18, 14) # will be reshaped
 
         self.fc1 = nn.Linear(3*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
@@ -300,23 +182,23 @@ class Uno3D_T20(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width)  
         
-        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 24,24, 5)
+        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 18,18, 5)
         
-        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  16,16,5)
+        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  14,14,5)
         
-        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 12,  8,8,5)
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 12,  6,6,5)
         
-        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 12,  4,4,6)
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 12,  3,3,6)
         
-        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 16,  4,4,6)
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 16,  3,3,6)
         
-        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 16,  4,4,8) 
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 16,  3,3,8) 
         
-        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 18,  8,8,8)
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 18,  6,6,8)
         
-        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 20,  16,16,8)
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 20,  14,14,8)
         
-        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 20,  24,24, 8) # will be reshaped
+        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 20,  18,18, 8) # will be reshaped
 
         self.fc1 = nn.Linear(3*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
@@ -425,23 +307,23 @@ class Uno3D_T10(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width)  
         
-        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 24,24, 5)
+        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 10, 18,18, 4)
         
-        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  16,16,4)
+        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,10,  14,14,4)
         
-        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 8,  8,8,4)
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 8,  6,6,3)
         
-        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 8,  4,4,4)
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 8,  3,3,3)
         
-        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 8,  4,4,4)
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 8,  3,3,3)
         
-        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 8,  4,4,4) 
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 8,  3,3,3) 
         
-        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 8,  8,8,4)
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 8,  6,6,3)
         
-        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 10,  16,16,4)
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 10,  14,14,3)
         
-        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 10,  24,24, 5) # will be reshaped
+        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 10,  18,18, 4) # will be reshaped
 
         self.fc1 = nn.Linear(3*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
@@ -550,23 +432,23 @@ class Uno3D_T9(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width)  
         
-        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 6, 24,24, 3)
+        self.conv0 = OperatorBlock_3D(self.width, 2*factor*self.width,48, 48, 6, 18,18, 3)
         
-        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,6,  16,16,3)
+        self.conv1 = OperatorBlock_3D(2*factor*self.width, 4*factor*self.width, 32, 32,6,  18,18,3)
         
-        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 6,  8,8,3)
+        self.conv2 = OperatorBlock_3D(4*factor*self.width, 8*factor*self.width, 16, 16, 6,  6,6,3)
         
-        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 8,  4,4,3)
+        self.conv3 = OperatorBlock_3D(8*factor*self.width, 16*factor*self.width, 8, 8, 8,  3,3,3)
         
-        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 8,  4,4,4)
+        self.conv4 = OperatorBlock_3D(16*factor*self.width, 16*factor*self.width, 8, 8, 8,  3,3,3)
         
-        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 8,  4,4,4) 
+        self.conv5 = OperatorBlock_3D(16*factor*self.width, 8*factor*self.width, 16, 16, 8,  3,3,3) 
         
-        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 8,  8,8,4)
+        self.conv6 = OperatorBlock_3D(8*factor*self.width, 4*factor*self.width, 32, 32, 8,  6,6,3)
         
-        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 9,  16,16,4)
+        self.conv7 = OperatorBlock_3D(8*factor*self.width, 2*factor*self.width, 48, 48, 9,  14,14,3)
         
-        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 9,  24,24, 4) # will be reshaped
+        self.conv8 = OperatorBlock_3D(4*factor*self.width, 2*self.width, 64, 64, 9,  18,18, 4) # will be reshaped
 
         self.fc1 = nn.Linear(3*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
