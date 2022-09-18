@@ -24,7 +24,7 @@ class UNO_P(nn.Module):
         super(UNO_P, self).__init__()
 
         """
-        The overall network. It contains 7 integral operator.
+        The overall neural operator contains 7 integral operator.
         1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
         2. 4 layers of the integral operators u' = (W + K)(u).
             W defined by self.w; K defined by self.conv .
