@@ -22,7 +22,7 @@ np.random.seed(0)
 
 class Uno3D_T40(nn.Module):
     """
-    The overall network. It contains 4 layers of the Fourier layer.
+    The neural operator contains 4 layers of the Fourier layer.
     1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
     2. 4 layers of the integral operators u' = (W + K)(u).
         W defined by self.w; K defined by self.conv .
