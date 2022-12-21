@@ -18,22 +18,27 @@ from torchsummary import summary
 import gc
 import math
 
+#hyper Parameters
+# Learning rate = 0.001
+# Weight deacy = 1e-5
+
 
 S = 64 # resolution SxS
 T_in = 10 # input time interval (0 - T_in)
 T_f = 40 # output time interval (T_in -  = T_in+T_f)
-ntrain = 1720 # number of training instances 
-ntest = 480 # number of test instances 
-nval = 200 # number of validation instances 
-batch_size = 20
+ntrain = 4000 # number of training instances 
+ntest = 500 # number of test instances 
+nval = 500 # number of validation instances 
+batch_size = 16
 width = 32 # Uplifting dimesion
-inwidth = 12 # dimension of UNO input ( 10 time step + (x,y) location )
-epochs = 700
+inwidth = 14 # dimension of UNO input ( 10 time step +  position embedding )
+epochs = 500
+
 # Following code load data from two separate files containing Navier-Stokes equation simulation
 train_a_1, train_u_1, test_a_1, test_u_1 = load_NS_("path to navier stokes simulation with viscosity 1e-3 with 1200 instances"\
-                                                    ,1000,200,Sample_num = 1200,T_in=T_in, T = T_f, size = S)
+                                                    ,2000,500,Sample_num = 2500,T_in=T_in, T = T_f, size = S)
 train_a_2, train_u_2, test_a_2, test_u_2 = load_NS_("path to navier stokes simulation with viscosity 1e-3 with 1200 instances"\
-                                                    ,1000 ,200,Sample_num = 1200,T_in=T_in, T = T_f, size=S)
+                                                    ,2000 ,500,Sample_num = 2500,T_in=T_in, T = T_f, size=S)
 a = torch.cat([train_a_1,train_a_2,test_a_1,test_a_2], dim = 0)
 u = torch.cat([train_u_1,train_u_2,test_u_1,test_u_2],dim = 0)
 indexs = [i for i in range(a.shape[0])]
@@ -57,4 +62,4 @@ test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a,
 model = UNO(inwidth,width)
 summary(model, (64, 64,10))
 train_model(model,train_loader,val_loader,test_loader, ntrain,nval,ntest,\
-            weight_path = 'UNO-10e3.pt',T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.0008,scheduler_step= 100,scheduler_gamma= 0.7,weight_decay = 1e-3)
+            weight_path = 'UNO-10e3.pt',T_f=T_f,batch_size=batch_size,epochs=epochs,learning_rate= 0.001,scheduler_step= 100,scheduler_gamma= 0.5,weight_decay = 1e-5)

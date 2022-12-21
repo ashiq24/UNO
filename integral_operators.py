@@ -204,7 +204,7 @@ class OperatorBlock_2D(nn.Module):
     Non_Lin = if true, applies point wise nonlinearity.
     All other variables are consistent with the SpectralConv2d_Uno class.
     """
-    def __init__(self, in_codim, out_codim,dim1, dim2,modes1,modes2, Normalize = True, Non_Lin = True):
+    def __init__(self, in_codim, out_codim,dim1, dim2,modes1,modes2, Normalize = False, Non_Lin = True):
         super(OperatorBlock_2D,self).__init__()
         self.conv = SpectralConv2d_Uno(in_codim, out_codim, dim1,dim2,modes1,modes2)
         self.w = pointwise_op_2D(in_codim, out_codim, dim1,dim2)
@@ -343,7 +343,7 @@ class OperatorBlock_3D(nn.Module):
     Non_Lin = if true, applies point wise nonlinearity.
     All other variables are consistent with the SpectralConv3d_Uno class.
     """
-    def __init__(self, in_codim, out_codim,dim1, dim2,dim3,modes1,modes2,modes3, Normalize = True,Non_Lin = True):
+    def __init__(self, in_codim, out_codim,dim1, dim2,dim3,modes1,modes2,modes3, Normalize = False,Non_Lin = True):
         super(OperatorBlock_3D,self).__init__()
         self.conv = SpectralConv3d_Uno(in_codim, out_codim, dim1,dim2,dim3,modes1,modes2,modes3)
         self.w = pointwise_op_3D(in_codim, out_codim, dim1,dim2,dim3)

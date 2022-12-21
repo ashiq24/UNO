@@ -19,29 +19,27 @@ from Adam import Adam
 torch.manual_seed(0)
 np.random.seed(0)
 
+
+# UNO model more aggressive domian contraction and expansion (factor of 1/2)
 class UNO_P(nn.Module):
     def __init__(self,in_width, width,pad = 0, factor = 1):
         super(UNO_P, self).__init__()
 
         """
-        The overall neural operator contains 7 integral operator.
+        The overall network. It contains 7 integral operator.
         1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
         2. 4 layers of the integral operators u' = (W + K)(u).
             W defined by self.w; K defined by self.conv .
         3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-
-
         input: the solution of the first 10 timesteps (u(1), ..., u(10)).
         input shape: (batchsize, x=S, y=S, t=10)
         output: the solution of the next timesteps
         output shape: (batchsize, x=S, y=S, t=1)
         Here SxS is the spatial resolution
-
         in_width = 12 (10 input time steps + (x,y) location)
         with = uplifting dimension
         pad = padding the domian for non-periodic input
         factor = factor for scaling up/down the co-domain dimension at each integral operator
-
         """
         self.in_width = in_width # input channel
         self.width = width 
@@ -120,15 +118,15 @@ class UNO_P(nn.Module):
     
     def get_grid(self, shape, device):
         batchsize, size_x, size_y = shape[0], shape[1], shape[2]
-        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = torch.tensor(np.linspace(0, 2*np.pi, size_x), dtype=torch.float)
         gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
-        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = torch.tensor(np.linspace(0, 2*np.pi, size_y), dtype=torch.float)
         gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
-        return torch.cat((gridx, gridy), dim=-1).to(device)
+        return torch.cat((torch.sin(gridx),torch.sin(gridy),torch.cos(gridx),torch.cos(gridy)), dim=-1).to(device)
 
 #####
-# The following models UNO has same sets of parameter 
-# it has different scaling factors for domains and co-domains.
+# UNO model 
+# it has less aggressive scaling factors for domains and co-domains.
 # ####    
 class UNO(nn.Module):
     def __init__(self,in_width, width,pad = 0, factor = 3/4):
@@ -144,7 +142,7 @@ class UNO(nn.Module):
 
         self.fc0 = nn.Linear(self.width//2, self.width) # input channel is 3: (a(x, y), x, y)
 
-        self.L0 = OperatorBlock_2D(self.width, 2*factor*self.width,48, 48, 18, 18)
+        self.L0 = OperatorBlock_2D(self.width, 2*factor*self.width,48, 48, 22, 22)
 
         self.L1 = OperatorBlock_2D(2*factor*self.width, 4*factor*self.width, 32, 32, 14,14)
 
@@ -156,7 +154,7 @@ class UNO(nn.Module):
 
         self.L5 = OperatorBlock_2D(8*factor*self.width, 2*factor*self.width, 48, 48,14,14)
 
-        self.L6 = OperatorBlock_2D(4*factor*self.width, self.width, 64, 64,18,18) # will be reshaped
+        self.L6 = OperatorBlock_2D(4*factor*self.width, self.width, 64, 64,22,22) # will be reshaped
 
         self.fc1 = nn.Linear(2*self.width, 4*self.width)
         self.fc2 = nn.Linear(4*self.width, 1)
@@ -204,12 +202,11 @@ class UNO(nn.Module):
     
     def get_grid(self, shape, device):
         batchsize, size_x, size_y = shape[0], shape[1], shape[2]
-        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = torch.tensor(np.linspace(0, 2*np.pi, size_x), dtype=torch.float)
         gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
-        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = torch.tensor(np.linspace(0, 2*np.pi, size_y), dtype=torch.float)
         gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
-        return torch.cat((gridx, gridy), dim=-1).to(device)
-
+        return torch.cat((torch.sin(gridx),torch.sin(gridy),torch.cos(gridx),torch.cos(gridy)), dim=-1).to(device)
 
 ###
 # UNO for high resolution (256x256) navier stocks simulations
@@ -286,8 +283,8 @@ class UNO_S256(nn.Module):
         return x_out
     def get_grid(self, shape, device):
         batchsize, size_x, size_y = shape[0], shape[1], shape[2]
-        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = torch.tensor(np.linspace(0, 2*np.pi, size_x), dtype=torch.float)
         gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
-        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = torch.tensor(np.linspace(0, 2*np.pi, size_y), dtype=torch.float)
         gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
-        return torch.cat((gridx, gridy), dim=-1).to(device)
+        return torch.cat((torch.sin(gridx),torch.sin(gridy),torch.cos(gridx),torch.cos(gridy)), dim=-1).to(device)
