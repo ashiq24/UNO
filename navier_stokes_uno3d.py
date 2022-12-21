@@ -24,7 +24,7 @@ class Uno3D_T40(nn.Module):
     """
     The overall network. It contains 4 layers of the Fourier layer.
     1. Lift the input to the desire channel dimension by  self.fc, self.fc0 .
-    2. 4 layers of the integral operators u' = (W + K)(u).
+    2. 7 layers of the integral operators u' = (W + K)(u).
         W defined by self.w; K defined by self.conv .
     3. Project from the channel space to the output space by self.fc1 and self.fc2 .
     
