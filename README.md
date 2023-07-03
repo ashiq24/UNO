@@ -3,9 +3,9 @@ This repository contains code accompaning the paper: [U-NO: U-shaped Neural Oper
 
 **UNO_Tutorial.ipynb** - A step by step tutorial for using and buidling U-NO. Link to Google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1f1WYsjAgIjJRFtfQYYnZCZsxl602MMPX?usp=sharing)
 
-
+**U-NO** is now available on [**Neural Operator**](https://github.com/neuraloperator/neuraloperator) library.
 ## Requirements
-pytorch 1.11.0
+PyTorch 1.11.0
 
 ## Files
 
