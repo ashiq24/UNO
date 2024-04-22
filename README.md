@@ -1,6 +1,10 @@
-# U-NO
-<img src="https://raw.githubusercontent.com/ashiq24/UNO/web_resources/uno.png" alt="uno architecture" style="height: 250px; width:300px;"/>
-This repository contains code accompanying the paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
+# U-NO: : U-shaped Neural Operators
+<img align="left" src="https://raw.githubusercontent.com/ashiq24/UNO/web_resources/uno.png" alt="uno architecture" alt="drawing" width="350"/>
+
+### Abstract
+Neural operators generalize classical neural networks to maps between infinite-dimensional spaces, e.g., function spaces. Prior works on neural operators proposed a series of novel methods to learn such maps and demonstrated unprecedented success in learning solution operators of partial differential equations. Due to their close proximity to fully connected architectures, these models mainly suffer from high memory usage and are generally limited to shallow deep-learning models. In this paper, we propose a U-shaped Neural Operator (U-NO), a U-shaped memory-enhanced architecture that allows for deeper neural operators. U-NOs exploit the problem structures in function predictions and demonstrate fast training, data efficiency, and robustness with respect to hyperparameter choices. We study the performance of U-NO on PDE benchmarks, namely, Darcy’s flow law and the Navier-Stokes equations. We show that U-NO results in an average of 26\% and 44\% prediction improvement on Darcy’s flow and turbulent Navier-Stokes equations, respectively, over the state-of-the-art. On the Navier-Stokes 3D spatiotemporal operator learning task, we show U-NO provides 37% improvement over the state-of-the-art methods.
+
+Paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
 
 **UNO_Tutorial.ipynb** - A step-by-step tutorial for using and buidling U-NO. Link to Google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1f1WYsjAgIjJRFtfQYYnZCZsxl602MMPX?usp=sharing)
 
@@ -34,7 +38,7 @@ PyTorch 1.11.0
 
 ## Data
 
-Link to two files containing 2000 simulations of Darcy Flow equation:
+Link to two files containing 2000 simulations of the Darcy Flow equation:
 [Google Drive Link](https://drive.google.com/drive/folders/1y6j5sL4QrpKTMrlVAyN7bUlt785oQtOm?usp=sharing)
 
-The **Data Generator** folder contains script for generating simulation of  Darcy Flow and Navier-Stocks equation.
+The **Data Generator** folder contains the script for generating a simulation of the Darcy Flow and Navier-Stocks equation.
