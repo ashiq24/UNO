@@ -1,4 +1,5 @@
 # U-NO
+<img src="https://raw.githubusercontent.com/ashiq24/UNO/web_resources/uno.png" alt="uno architecture" style="height: 250px; width:300px;"/>
 This repository contains code accompanying the paper: [U-NO: U-shaped Neural Operators](https://arxiv.org/pdf/2204.11127.pdf)
 
 **UNO_Tutorial.ipynb** - A step-by-step tutorial for using and buidling U-NO. Link to Google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1f1WYsjAgIjJRFtfQYYnZCZsxl602MMPX?usp=sharing)
