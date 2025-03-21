@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 import scipy.io
-#import h5py
+
+# import h5py
 import torch.nn as nn
 
 import operator
@@ -13,7 +14,8 @@ from functools import partial
 # Utilities
 #
 #################################################
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # reading data
 class MatReader(object):
@@ -70,11 +72,9 @@ class MatReader(object):
         self.to_float = to_float
 
 
-
 class LpLoss(object):
     def __init__(self, d=2, p=2, size_average=True, reduction=True):
         super(LpLoss, self).__init__()
-
 
         assert d > 0 and p > 0
 
@@ -86,17 +86,18 @@ class LpLoss(object):
     def rel(self, x, y):
         num_examples = x.size()[0]
 
-        diff_norms = torch.norm(x.reshape(num_examples,-1) - y.reshape(num_examples,-1), self.p, 1)
-        y_norms = torch.norm(y.reshape(num_examples,-1), self.p, 1)
+        diff_norms = torch.norm(
+            x.reshape(num_examples, -1) - y.reshape(num_examples, -1), self.p, 1
+        )
+        y_norms = torch.norm(y.reshape(num_examples, -1), self.p, 1)
 
         if self.reduction:
             if self.size_average:
-                return torch.mean(diff_norms/y_norms)
+                return torch.mean(diff_norms / y_norms)
             else:
-                return torch.sum(diff_norms/y_norms)
+                return torch.sum(diff_norms / y_norms)
 
-        return diff_norms/y_norms
+        return diff_norms / y_norms
 
     def __call__(self, x, y):
         return self.rel(x, y)
-
